@@ -12,9 +12,17 @@ import numpy as np
 from scan2plan.config import ScanConfig
 from scan2plan.detection.line_detection import DetectedSegment, detect_lines_hough
 from scan2plan.detection.morphology import binarize_density_map, morphological_cleanup
+from scan2plan.detection.multi_slice_filter import (
+    classify_segments,
+    get_door_candidates,
+    get_window_candidates,
+    match_segments_across_slices,
+)
+from scan2plan.detection.openings import detect_all_openings
+from scan2plan.detection.orientation import detect_dominant_orientations
 from scan2plan.detection.segment_fusion import fuse_collinear_segments
 from scan2plan.io.readers import read_point_cloud
-from scan2plan.io.writers import export_dxf
+from scan2plan.io.writers import export_dxf_v1
 from scan2plan.preprocessing.downsampling import voxel_downsample
 from scan2plan.preprocessing.floor_ceiling import (
     detect_ceiling,
@@ -22,14 +30,15 @@ from scan2plan.preprocessing.floor_ceiling import (
     filter_vertical_range,
 )
 from scan2plan.preprocessing.outlier_removal import remove_statistical_outliers
-from scan2plan.detection.multi_slice_filter import (
-    classify_segments,
-    get_door_candidates,
-    get_window_candidates,
-    match_segments_across_slices,
-)
+from scan2plan.qa.metrics import QAReport
+from scan2plan.qa.validator import validate_plan
 from scan2plan.slicing.density_map import DensityMapResult, create_density_map
 from scan2plan.slicing.slicer import extract_multi_slices
+from scan2plan.vectorization.regularization import (
+    align_parallel_segments,
+    regularize_segments,
+)
+from scan2plan.vectorization.topology import WallGraph, build_wall_graph, clean_topology
 
 logger = logging.getLogger(__name__)
 
@@ -46,8 +55,13 @@ class PipelineResult:
         num_points_in_slice: Points dans la slice médiane utilisée pour la détection.
         num_segments_detected: Segments bruts issus de Hough.
         num_segments_after_fusion: Segments après fusion colinéaire.
+        num_segments_final: Segments après régularisation et topologie.
+        num_rooms_detected: Pièces fermées détectées dans le graphe.
+        num_openings: Ouvertures détectées (portes + fenêtres).
         floor_z: Altitude du sol détecté (mètres).
         ceiling_z: Altitude du plafond détecté (mètres).
+        qa_score: Score QA de 0 à 100.
+        qa_report: Rapport QA complet (None si non disponible).
         execution_time_seconds: Durée totale d'exécution.
         success: True si le pipeline s'est terminé avec succès.
         warnings: Liste de messages d'avertissement émis pendant l'exécution.
@@ -60,8 +74,13 @@ class PipelineResult:
     num_points_in_slice: int = 0
     num_segments_detected: int = 0
     num_segments_after_fusion: int = 0
+    num_segments_final: int = 0
+    num_rooms_detected: int = 0
+    num_openings: int = 0
     floor_z: float = 0.0
     ceiling_z: float = 0.0
+    qa_score: float = 0.0
+    qa_report: QAReport | None = None
     execution_time_seconds: float = 0.0
     success: bool = False
     warnings: list[str] = field(default_factory=list)
@@ -69,16 +88,20 @@ class PipelineResult:
     def summary(self) -> str:
         """Résumé lisible du résultat du pipeline."""
         status = "OK" if self.success else "ECHEC"
-        return (
-            f"[{status}] {self.input_path.name} → {self.output_path.name}\n"
+        lines = [
+            f"[{status}] {self.input_path.name} → {self.output_path.name}",
             f"  Points : {self.num_points_original:,} → {self.num_points_after_preprocessing:,} "
-            f"(après prétraitement)\n"
-            f"  Slice  : {self.num_points_in_slice:,} points\n"
+            f"(après prétraitement)",
+            f"  Slice  : {self.num_points_in_slice:,} points",
             f"  Segments : {self.num_segments_detected} détectés → "
-            f"{self.num_segments_after_fusion} après fusion\n"
-            f"  Sol/Plafond : {self.floor_z:.3f} m / {self.ceiling_z:.3f} m\n"
-            f"  Durée  : {self.execution_time_seconds:.1f} s"
-        )
+            f"{self.num_segments_after_fusion} après fusion → "
+            f"{self.num_segments_final} après topologie",
+            f"  Pièces : {self.num_rooms_detected}  |  Ouvertures : {self.num_openings}",
+            f"  Sol/Plafond : {self.floor_z:.3f} m / {self.ceiling_z:.3f} m",
+            f"  Score QA : {self.qa_score:.0f}/100",
+            f"  Durée  : {self.execution_time_seconds:.1f} s",
+        ]
+        return "\n".join(lines)
 
 
 class Scan2PlanPipeline:
@@ -109,7 +132,7 @@ class Scan2PlanPipeline:
         save_intermediates: bool = False,
         debug_visualizations: bool = False,
     ) -> PipelineResult:
-        """Exécute le pipeline complet de Scan2Plan.
+        """Exécute le pipeline complet de Scan2Plan V1.
 
         Étapes :
         1. Lecture du nuage de points.
@@ -122,7 +145,11 @@ class Scan2PlanPipeline:
         8. Density map + binarisation + Hough pour chaque slice.
         9. Filtrage multi-slice : murs vs mobilier vs ouvertures.
         10. Fusion de segments colinéaires.
-        11. Export DXF.
+        11. Détection des orientations dominantes + régularisation angulaire.
+        12. Détection des ouvertures (portes/fenêtres).
+        13. Reconstruction topologique (graphe de murs + intersections).
+        14. Export DXF V1 multi-calques.
+        15. Contrôle qualité automatique.
 
         Args:
             input_path: Chemin du fichier nuage de points (E57, LAS, LAZ).
@@ -209,8 +236,6 @@ class Scan2PlanPipeline:
                     floor_z=z_floor,
                 ),
             )
-            # La slice médiane (ou la plus proche de 1.10m) est la référence
-            # pour la métrique num_points_in_slice
             mid_slice = slices_xy.get("mid", slices_xy.get("high", np.empty((0, 2))))
             result.num_points_in_slice = len(mid_slice)
 
@@ -218,6 +243,8 @@ class Scan2PlanPipeline:
             cfg_h = self.config.hough
             cfg_morph = self.config.morphology
             segments_by_slice: dict[str, list[DetectedSegment]] = {}
+            density_maps: dict[str, DensityMapResult] = {}
+            binary_images: dict[str, np.ndarray] = {}
             all_detected: list[DetectedSegment] = []
 
             for label, slice_xy in slices_xy.items():
@@ -229,6 +256,7 @@ class Scan2PlanPipeline:
                     f"Density map [{label}]",
                     lambda s=slice_xy: create_density_map(s, self.config.density_map.resolution),
                 )
+                density_maps[label] = dmap
 
                 if save_intermediates and label == "mid":
                     self._save_density_map_png(dmap, output_path, f"density_map_{label}")
@@ -246,6 +274,7 @@ class Scan2PlanPipeline:
                         cfg_morph.open_iterations,
                     ),
                 )
+                binary_images[label] = binary
 
                 segs: list[DetectedSegment] = self._step(
                     f"Hough [{label}]",
@@ -288,7 +317,6 @@ class Scan2PlanPipeline:
                 lambda: classify_segments(matches),
             )
 
-            # Stocker les candidats ouvertures pour les sprints suivants
             self._door_candidates = get_door_candidates(matches)
             self._window_candidates = get_window_candidates(matches)
             self.logger.info(
@@ -317,24 +345,87 @@ class Scan2PlanPipeline:
             )
             result.num_segments_after_fusion = len(fused)
 
+            # ---- Étape 11 : Orientations dominantes + régularisation --------
+            dominant_angles: list[float] = self._step(
+                "Orientations dominantes",
+                lambda: detect_dominant_orientations(fused),
+            )
+
+            cfg_reg = self.config._data.get("regularization", {})
+            snap_tol = float(cfg_reg.get("snap_tolerance_deg", 5.0))
+
+            regularized: list[DetectedSegment] = self._step(
+                "Régularisation angulaire",
+                lambda: regularize_segments(fused, dominant_angles, snap_tol),
+            )
+            regularized = self._step(
+                "Alignement parallèle",
+                lambda: align_parallel_segments(regularized, dominant_angles),
+            )
+
+            # ---- Étape 12 : Détection des ouvertures -----------------------
+            cfg_op = self.config._data.get("openings", {})
+            openings = self._step(
+                "Détection ouvertures",
+                lambda: detect_all_openings(
+                    self._door_candidates + self._window_candidates,
+                    density_maps,
+                    binary_images,
+                    cfg_op,
+                ),
+            )
+            result.num_openings = len(openings)
+
+            # ---- Étape 13 : Reconstruction topologique ---------------------
+            cfg_top = self.config._data.get("topology", {})
+            inter_dist = float(cfg_top.get("intersection_distance", 0.05))
+            min_seg = float(cfg_top.get("min_segment_length", 0.10))
+
+            wall_graph: WallGraph = self._step(
+                "Graphe topologique",
+                lambda: build_wall_graph(
+                    regularized,
+                    openings,
+                    intersection_distance=inter_dist,
+                    min_segment_length=min_seg,
+                ),
+            )
+            wall_graph = self._step(
+                "Nettoyage topologie",
+                lambda: clean_topology(wall_graph, min_segment_length=min_seg),
+            )
+
+            result.num_segments_final = len(wall_graph.segments)
+
             if debug_visualizations:
-                # Visualisation sur la density map de la slice mid
                 mid_slice_xy = slices_xy.get("mid", np.empty((0, 2)))
                 if len(mid_slice_xy) > 0:
                     dmap_mid = create_density_map(mid_slice_xy, self.config.density_map.resolution)
-                    self._save_segment_visualization(dmap_mid, fused, output_path)
+                    self._save_segment_visualization(dmap_mid, wall_graph.segments, output_path)
 
-            # ---- Étape 11 : Export DXF -------------------------------------
+            # ---- Étape 14 : Export DXF V1 ----------------------------------
             final_path = self._step(
-                "Export DXF",
-                lambda: export_dxf(
-                    fused,
+                "Export DXF V1",
+                lambda: export_dxf_v1(
+                    wall_graph,
+                    openings,
                     output_path,
-                    version=self.config.dxf.version,
-                    layer_config=self.config.dxf.layers,
+                    config=self.config,
                 ),
             )
             result.output_path = final_path
+
+            # ---- Étape 15 : Contrôle qualité --------------------------------
+            qa: QAReport = self._step(
+                "Contrôle qualité",
+                lambda: validate_plan(wall_graph, openings),
+            )
+            result.qa_score = qa.score
+            result.qa_report = qa
+            result.num_rooms_detected = qa.num_rooms_detected
+            result.warnings.extend(qa.warnings)
+
+            self.logger.info(qa.summary())
             result.success = True
 
         except Exception as exc:
@@ -390,20 +481,6 @@ class Scan2PlanPipeline:
             plt.close(fig)
         except Exception as exc:
             self.logger.warning("Impossible de sauvegarder la density map : %s", exc)
-
-    def _save_image_png(self, image: np.ndarray, output_path: Path, stem: str) -> None:
-        """Sauvegarde une image binaire en PNG (nécessite matplotlib)."""
-        try:
-            import matplotlib.pyplot as plt
-            from scan2plan.utils.visualization import save_figure
-            fig, ax = plt.subplots()
-            ax.imshow(image, cmap="gray", origin="upper")
-            ax.set_title(stem)
-            out = output_path.parent / f"{output_path.stem}_{stem}.png"
-            save_figure(fig, out)
-            plt.close(fig)
-        except Exception as exc:
-            self.logger.warning("Impossible de sauvegarder l'image binaire : %s", exc)
 
     def _save_segment_visualization(
         self,

@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import logging
 from pathlib import Path
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 
 import numpy as np
 
@@ -252,6 +252,123 @@ def export_openings_to_dxf(
         n_entities,
     )
     return n_entities
+
+
+def export_dxf_v1(
+    wall_graph: "Any",
+    openings: "list[Opening]",
+    output_path: Path,
+    config: "Any | None" = None,
+) -> Path:
+    """Exporte le plan V1 : murs structurés par calques métier + ouvertures.
+
+    Calques créés :
+    - MURS (blanc ACI 7, lineweight 35 = 0.35 mm) : segments de haute confiance.
+    - CLOISONS (cyan ACI 4) : segments avec source_slice="low" uniquement.
+    - INCERTAIN (jaune ACI 2, tirets) : segments à confiance < seuil.
+    - PORTES (rouge ACI 1) : ouvertures de type porte.
+    - FENETRES (bleu ACI 5) : ouvertures de type fenêtre.
+
+    Args:
+        wall_graph: WallGraph avec les segments régularisés et nettoyés.
+        openings: Liste d'ouvertures détectées.
+        output_path: Chemin du fichier DXF de sortie.
+        config: ScanConfig optionnel pour les noms de calques et la version DXF.
+
+    Returns:
+        Chemin du fichier DXF créé.
+    """
+    import ezdxf
+
+    version = "R2013"
+    layer_names = {
+        "walls": "MURS",
+        "partitions": "CLOISONS",
+        "doors": "PORTES",
+        "windows": "FENETRES",
+        "uncertain": "INCERTAIN",
+    }
+    confidence_threshold = 0.50
+
+    if config is not None:
+        version = getattr(config.dxf, "version", version)
+        cfg_layers = getattr(config.dxf, "layers", {})
+        layer_names.update(cfg_layers)
+
+    doc = ezdxf.new(dxfversion=version)
+
+    # Calques métier avec couleurs et attributs
+    _add_layer(doc, layer_names["walls"], 7)       # blanc
+    _add_layer(doc, layer_names["partitions"], 4)  # cyan
+    _add_layer(doc, layer_names["uncertain"], 2)   # jaune
+    _add_layer(doc, layer_names["doors"], 1)       # rouge
+    _add_layer(doc, layer_names["windows"], 5)     # bleu
+
+    # Linetype tirets pour INCERTAIN
+    _ensure_dashed_linetype(doc)
+    doc.layers.get(layer_names["uncertain"]).dxf.linetype = "DASHED"
+
+    # Lineweight 35 (= 0.35 mm) pour MURS
+    doc.layers.get(layer_names["walls"]).dxf.lineweight = 35
+
+    msp = doc.modelspace()
+
+    # ---- Segments de murs -------------------------------------------------
+    for seg in wall_graph.segments:
+        layer = _classify_segment_layer(seg, layer_names, confidence_threshold)
+        msp.add_line(
+            start=(seg.x1, seg.y1, 0.0),
+            end=(seg.x2, seg.y2, 0.0),
+            dxfattribs={"layer": layer},
+        )
+
+    # ---- Ouvertures -------------------------------------------------------
+    export_openings_to_dxf(openings, doc, layer_names)
+
+    output_path = output_path.with_suffix(".dxf")
+    output_path.parent.mkdir(parents=True, exist_ok=True)
+    doc.saveas(str(output_path))
+
+    logger.info(
+        "DXF V1 exporté : %s — %d segments, %d ouvertures (version %s).",
+        output_path,
+        len(wall_graph.segments),
+        len(openings),
+        version,
+    )
+    return output_path
+
+
+def _classify_segment_layer(
+    seg: "DetectedSegment",
+    layer_names: dict[str, str],
+    confidence_threshold: float,
+) -> str:
+    """Détermine le calque d'un segment selon sa confiance et sa source.
+
+    Args:
+        seg: Segment de mur.
+        layer_names: Mapping {clé: nom_calque}.
+        confidence_threshold: Seuil de confiance pour le calque INCERTAIN.
+
+    Returns:
+        Nom du calque DXF.
+    """
+    if seg.confidence < confidence_threshold:
+        return layer_names["uncertain"]
+    if seg.source_slice == "low":
+        return layer_names["partitions"]
+    return layer_names["walls"]
+
+
+def _ensure_dashed_linetype(doc: "ezdxf.document.Drawing") -> None:
+    """Ajoute le linetype DASHED au document s'il n'existe pas.
+
+    Args:
+        doc: Document ezdxf.
+    """
+    if "DASHED" not in doc.linetypes:
+        doc.linetypes.new("DASHED", dxfattribs={"description": "Dashed"})
 
 
 def _add_layer(doc: "ezdxf.document.Drawing", name: str, color: int) -> None:
