@@ -22,13 +22,13 @@ jobs:
       # 1. Checkout
       # ----------------------------------------------------------------
       - name: Checkout repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6.0.2
 
       # ----------------------------------------------------------------
       # 2. Setup Python 3.12
       # ----------------------------------------------------------------
       - name: Set up Python ${{ matrix.python-version }}
-        uses: actions/setup-python@v5
+        uses: actions/setup-python@v6.2.0
         with:
           python-version: ${{ matrix.python-version }}
 
@@ -36,7 +36,7 @@ jobs:
       # 3. Cache pip — accélère les runs suivants
       # ----------------------------------------------------------------
       - name: Cache pip
-        uses: actions/cache@v4
+        uses: actions/cache@v5.0.4
         with:
           path: |
             ~/.cache/pip
