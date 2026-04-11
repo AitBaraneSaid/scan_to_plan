@@ -1,0 +1,54 @@
+# Paramètres du pipeline Scan2Plan
+
+preprocessing:
+  voxel_size: 0.005          # Taille du voxel pour le downsampling (m)
+  sor_k_neighbors: 20        # Nombre de voisins pour le SOR
+  sor_std_ratio: 2.0         # Multiplicateur σ pour le SOR
+
+floor_ceiling:
+  ransac_distance: 0.02      # Distance seuil RANSAC pour le sol/plafond (m)
+  ransac_iterations: 1000    # Nombre d'itérations RANSAC
+  normal_tolerance_deg: 10   # Tolérance angulaire pour l'horizontalité (degrés)
+
+slicing:
+  heights:                    # Hauteurs des slices relatives au sol (m)
+    - 2.10                    # Slice haute
+    - 1.10                    # Slice médiane (coupe standard)
+    - 0.20                    # Slice basse
+  thickness: 0.10             # Épaisseur de chaque tranche (m)
+
+density_map:
+  resolution: 0.005           # Résolution du raster (m/pixel)
+
+morphology:
+  kernel_size: 5              # Taille de l'élément structurant (pixels)
+  close_iterations: 2         # Nombre d'itérations de fermeture
+  open_iterations: 1          # Nombre d'itérations d'ouverture
+
+hough:
+  rho: 1                      # Résolution spatiale (pixels)
+  theta_deg: 0.5              # Résolution angulaire (degrés)
+  threshold: 50               # Seuil d'accumulation
+  min_line_length: 50         # Longueur minimale de segment (pixels)
+  max_line_gap: 20            # Gap maximal entre points d'un segment (pixels)
+
+segment_fusion:
+  angle_tolerance_deg: 3.0    # Tolérance angulaire pour la colinéarité (degrés)
+  perpendicular_dist: 0.03    # Distance perpendiculaire maximale (m)
+  max_gap: 0.20               # Gap maximal entre segments à fusionner (m)
+
+regularization:
+  snap_tolerance_deg: 5.0     # Tolérance angulaire pour le snapping (degrés)
+
+topology:
+  intersection_distance: 0.05 # Distance maximale pour chercher une intersection (m)
+  min_segment_length: 0.10    # Longueur minimale d'un segment (m)
+
+dxf:
+  version: "R2013"            # Version DXF
+  layers:
+    walls: "MURS"
+    partitions: "CLOISONS"
+    doors: "PORTES"
+    windows: "FENETRES"
+    uncertain: "INCERTAIN"

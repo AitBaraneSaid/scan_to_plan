@@ -1,0 +1,107 @@
+@echo off
+setlocal enabledelayedexpansion
+
+echo ============================================================
+echo  Scan2Plan — Installation de l'environnement Python
+echo ============================================================
+echo.
+
+:: ----------------------------------------------------------------
+:: 1. Verifier que Python 3.12 est disponible
+:: ----------------------------------------------------------------
+py -3.12 --version >nul 2>&1
+if errorlevel 1 (
+    echo [INFO] Python 3.12 non detecte. Installation via winget...
+    winget install Python.Python.3.12 --silent --accept-package-agreements --accept-source-agreements
+    if errorlevel 1 (
+        echo [ERREUR] Echec de l'installation de Python 3.12.
+        echo          Installez-le manuellement depuis https://www.python.org/downloads/release/python-3121/
+        echo          puis relancez ce script.
+        pause
+        exit /b 1
+    )
+    echo [OK] Python 3.12 installe.
+) else (
+    for /f "tokens=*" %%v in ('py -3.12 --version 2^>^&1') do echo [OK] %%v detecte.
+)
+
+:: ----------------------------------------------------------------
+:: 2. Creer le venv si absent
+:: ----------------------------------------------------------------
+if exist ".venv\Scripts\python.exe" (
+    echo [OK] Venv .venv\ existant detecte, on le reutilise.
+) else (
+    echo [INFO] Creation du venv Python 3.12 dans .venv\ ...
+    py -3.12 -m venv .venv
+    if errorlevel 1 (
+        echo [ERREUR] Impossible de creer le venv.
+        pause
+        exit /b 1
+    )
+    echo [OK] Venv cree.
+)
+
+:: ----------------------------------------------------------------
+:: 3. Mettre a jour pip dans le venv
+:: ----------------------------------------------------------------
+echo [INFO] Mise a jour de pip...
+.venv\Scripts\python.exe -m pip install --upgrade pip --quiet
+
+:: ----------------------------------------------------------------
+:: 4. Installer le package et toutes ses dependances
+:: ----------------------------------------------------------------
+echo [INFO] Installation de scan2plan et de ses dependances...
+echo        (open3d peut prendre quelques minutes au premier telechargement)
+echo.
+.venv\Scripts\pip.exe install -e ".[dev]"
+if errorlevel 1 (
+    echo.
+    echo [ERREUR] L'installation a echoue. Verifiez votre connexion internet
+    echo          et relancez le script.
+    pause
+    exit /b 1
+)
+
+:: ----------------------------------------------------------------
+:: 5. Verifier que la CLI est operationnelle
+:: ----------------------------------------------------------------
+echo.
+echo [INFO] Verification de la CLI scan2plan...
+.venv\Scripts\scan2plan.exe --help >nul 2>&1
+if errorlevel 1 (
+    echo [AVERTISSEMENT] La CLI scan2plan n'est pas accessible.
+    echo                 Activez le venv et relancez : .venv\Scripts\activate
+) else (
+    echo [OK] CLI scan2plan operationnelle.
+)
+
+:: ----------------------------------------------------------------
+:: 6. Lancer les tests pour valider l'installation
+:: ----------------------------------------------------------------
+echo [INFO] Lancement de la suite de tests...
+echo.
+.venv\Scripts\python.exe -m pytest tests\ -v --tb=short
+if errorlevel 1 (
+    echo.
+    echo [AVERTISSEMENT] Certains tests ont echoue. Verifiez les logs ci-dessus.
+) else (
+    echo.
+    echo [OK] Tous les tests passent.
+)
+
+:: ----------------------------------------------------------------
+:: 7. Resume
+:: ----------------------------------------------------------------
+echo.
+echo ============================================================
+echo  Installation terminee.
+echo.
+echo  Pour utiliser scan2plan :
+echo    .venv\Scripts\activate
+echo    scan2plan --help
+echo.
+echo  Pour lancer les tests :
+echo    .venv\Scripts\python.exe -m pytest tests\ -v
+echo ============================================================
+echo.
+pause

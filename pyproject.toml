@@ -1,0 +1,45 @@
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "scan2plan"
+version = "0.1.0"
+description = "Transforme un nuage de points 3D indoor en plan 2D DXF exploitable dans AutoCAD."
+readme = "README.md"
+requires-python = ">=3.12,<3.13"
+license = { text = "Proprietary" }
+authors = [{ name = "AIT BARANE Said" }]
+
+dependencies = [
+    "open3d>=0.18",
+    "numpy>=1.26",
+    "scipy>=1.12",
+    "opencv-python-headless>=4.9",
+    "scikit-image>=0.22",
+    "shapely>=2.0",
+    "networkx>=3.2",
+    "ezdxf>=1.2",
+    "pye57>=0.4",
+    "laspy[lazrs]>=2.5",
+    "matplotlib>=3.8",
+    "typer>=0.12",
+    "pyyaml>=6.0",
+]
+
+[project.optional-dependencies]
+dev = ["pytest>=8.0", "pytest-cov>=5.0"]
+
+[project.scripts]
+scan2plan = "scan2plan.cli:app"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "-v --tb=short"
+
+[tool.coverage.run]
+source = ["scan2plan"]
+omit = ["tests/*"]

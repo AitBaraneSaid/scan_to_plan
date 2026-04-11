@@ -1,0 +1,38 @@
+# Environnement virtuel Python
+.venv/
+
+# Bytecode Python
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+
+# Build / packaging
+*.egg-info/
+dist/
+build/
+
+# Pytest / coverage
+.pytest_cache/
+.coverage
+htmlcov/
+
+# Données volumineuses (ne jamais committer)
+*.e57
+*.las
+*.laz
+*.pts
+*.ptx
+
+# Sorties générées
+output/
+*.dxf
+
+# IDE
+.vscode/
+.idea/
+*.iml
+
+# OS
+Thumbs.db
+.DS_Store
