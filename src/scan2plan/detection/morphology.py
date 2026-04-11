@@ -9,41 +9,78 @@ import numpy as np
 logger = logging.getLogger(__name__)
 
 
-def binarize_and_clean(
+def binarize_density_map(
     density_map: np.ndarray,
-    kernel_size: int,
-    close_iterations: int,
-    open_iterations: int,
+    method: str = "otsu",
 ) -> np.ndarray:
-    """Binarise une density map et applique un nettoyage morphologique.
+    """Binarise une density map par seuillage.
 
-    Utilise le seuillage d'Otsu pour la binarisation, puis une fermeture
-    morphologique pour combler les trous dans les murs, et une ouverture
-    pour supprimer les artefacts isolés.
+    Seule la méthode ``"otsu"`` est supportée (seuillage adaptatif).
+    Le seuil d'Otsu calculé est loggé en DEBUG pour faciliter le réglage.
 
     Args:
-        density_map: Array 2D (H, W) uint16 — densité de points par pixel.
-        kernel_size: Taille de l'élément structurant (pixels, impair recommandé).
-        close_iterations: Nombre d'itérations de fermeture.
-        open_iterations: Nombre d'itérations d'ouverture.
+        density_map: Array 2D (H, W) numérique — densité de points par pixel.
+        method: Méthode de seuillage. Seul ``"otsu"`` est accepté.
 
     Returns:
         Array 2D (H, W) uint8 — image binaire (0=vide, 255=occupé).
+
+    Raises:
+        ValueError: Si ``method`` est inconnu.
+
+    Example:
+        >>> binary = binarize_density_map(dmap.image)
     """
     import cv2
 
-    img_8bit = _to_uint8(density_map)
-    _, binary = cv2.threshold(img_8bit, 0, 255, cv2.THRESH_BINARY + cv2.THRESH_OTSU)
+    if method != "otsu":
+        raise ValueError(f"Méthode de seuillage inconnue : '{method}'. Seul 'otsu' est supporté.")
 
-    kernel = cv2.getStructuringElement(
-        cv2.MORPH_RECT, (kernel_size, kernel_size)
+    img_8bit = _to_uint8(density_map)
+    otsu_threshold, binary = cv2.threshold(img_8bit, 0, 255, cv2.THRESH_BINARY + cv2.THRESH_OTSU)
+
+    occupied = int((binary > 0).sum())
+    logger.debug(
+        "Binarisation Otsu : seuil=%.1f — %d px occupés / %d total.",
+        otsu_threshold,
+        occupied,
+        binary.size,
     )
-    closed = cv2.morphologyEx(binary, cv2.MORPH_CLOSE, kernel, iterations=close_iterations)
+    return binary
+
+
+def morphological_cleanup(
+    binary_image: np.ndarray,
+    kernel_size: int = 5,
+    close_iterations: int = 2,
+    open_iterations: int = 1,
+) -> np.ndarray:
+    """Nettoie une image binaire par opérations morphologiques.
+
+    Applique une fermeture (comble les trous dans les murs) puis une ouverture
+    (supprime les artefacts isolés).
+
+    Args:
+        binary_image: Array 2D (H, W) uint8 — image binaire (0=vide, 255=occupé).
+        kernel_size: Taille de l'élément structurant rectangulaire (pixels). Défaut : 5.
+        close_iterations: Nombre d'itérations de fermeture. Défaut : 2.
+        open_iterations: Nombre d'itérations d'ouverture. Défaut : 1.
+
+    Returns:
+        Array 2D (H, W) uint8 — image binaire nettoyée.
+
+    Example:
+        >>> cleaned = morphological_cleanup(binary, kernel_size=5, close_iterations=2)
+    """
+    import cv2
+
+    kernel = cv2.getStructuringElement(cv2.MORPH_RECT, (kernel_size, kernel_size))
+    closed = cv2.morphologyEx(binary_image, cv2.MORPH_CLOSE, kernel, iterations=close_iterations)
     cleaned = cv2.morphologyEx(closed, cv2.MORPH_OPEN, kernel, iterations=open_iterations)
 
     occupied = int((cleaned > 0).sum())
     logger.debug(
-        "Binarisation Otsu + morphologie (kernel=%d, close=%d, open=%d) : %d px occupés.",
+        "Nettoyage morphologique (kernel=%d, close=%d, open=%d) : %d px occupés.",
         kernel_size,
         close_iterations,
         open_iterations,

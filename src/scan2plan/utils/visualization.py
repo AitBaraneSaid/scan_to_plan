@@ -101,6 +101,9 @@ def plot_density_map(
 ) -> None:
     """Affiche une density map avec les axes en mètres.
 
+    L'image est supposée en convention standard (row 0 = Y maximal).
+    ``origin`` désigne le coin bas-gauche (x_min, y_min) en mètres.
+
     Args:
         density_map: Array 2D (H, W) — nombre de points par pixel.
         title: Titre de la figure.
@@ -108,21 +111,19 @@ def plot_density_map(
         origin: Coordonnées métriques du coin bas-gauche (x_min, y_min).
 
     Example:
-        >>> plot_density_map(dmap, "Density map slice 1.10 m", resolution=0.005)
+        >>> plot_density_map(dmap.image, "Density map slice 1.10 m",
+        ...                  resolution=dmap.resolution, origin=(dmap.x_min, dmap.y_min))
     """
     import matplotlib.pyplot as plt
 
     h, w = density_map.shape
-    extent = [
-        origin[0],
-        origin[0] + w * resolution,
-        origin[1],
-        origin[1] + h * resolution,
-    ]
+    x_min, y_min = origin
+    # extent : [left, right, bottom, top] en coordonnées métriques
+    extent = [x_min, x_min + w * resolution, y_min, y_min + h * resolution]
     _, ax = plt.subplots(figsize=(10, 8))
     ax.imshow(
         density_map,
-        origin="lower",
+        origin="upper",
         extent=extent,
         cmap="hot",
         interpolation="nearest",
@@ -208,6 +209,66 @@ def plot_preprocessing_results(
         "plot_preprocessing_results : brut=%d, down=%d, filtré=%d, sol=%.3f m, plafond=%.3f m.",
         len(original), len(downsampled), len(filtered), floor_z, ceiling_z,
     )
+    plt.show()
+
+
+def plot_binary_image(image: np.ndarray, title: str) -> None:
+    """Affiche une image binaire (résultat de binarisation ou nettoyage morphologique).
+
+    Args:
+        image: Array 2D (H, W) uint8 — image binaire (0=vide, 255=occupé).
+        title: Titre de la figure.
+
+    Example:
+        >>> plot_binary_image(binary, "Image binaire Otsu")
+    """
+    import matplotlib.pyplot as plt
+
+    _, ax = plt.subplots(figsize=(10, 8))
+    ax.imshow(image, cmap="gray", origin="upper", interpolation="nearest")
+    ax.set_title(title)
+    ax.axis("off")
+    logger.debug("Affichage image binaire : %d × %d px.", image.shape[1], image.shape[0])
+    plt.tight_layout()
+    plt.show()
+
+
+def plot_slice_pipeline(
+    density: np.ndarray,
+    binary: np.ndarray,
+    cleaned: np.ndarray,
+    titles: tuple[str, str, str] = ("Density map", "Binaire (Otsu)", "Nettoyé"),
+) -> None:
+    """Affiche les trois étapes du traitement d'une slice en une figure 1×3.
+
+    Args:
+        density: Array 2D (H, W) — density map brute.
+        binary: Array 2D (H, W) uint8 — après binarisation Otsu.
+        cleaned: Array 2D (H, W) uint8 — après nettoyage morphologique.
+        titles: Tuple de 3 titres pour les sous-figures.
+
+    Example:
+        >>> plot_slice_pipeline(dmap.image, binary_raw, binary_cleaned)
+    """
+    import matplotlib.pyplot as plt
+
+    fig, axes = plt.subplots(1, 3, figsize=(18, 6))
+    fig.suptitle("Traitement de la slice", fontsize=13, fontweight="bold")
+
+    axes[0].imshow(density, cmap="hot", origin="upper", interpolation="nearest")
+    axes[0].set_title(titles[0])
+    axes[0].axis("off")
+
+    axes[1].imshow(binary, cmap="gray", origin="upper", interpolation="nearest")
+    axes[1].set_title(titles[1])
+    axes[1].axis("off")
+
+    axes[2].imshow(cleaned, cmap="gray", origin="upper", interpolation="nearest")
+    axes[2].set_title(titles[2])
+    axes[2].axis("off")
+
+    plt.tight_layout()
+    logger.debug("plot_slice_pipeline : %s", " | ".join(titles))
     plt.show()
 
 

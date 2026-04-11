@@ -9,16 +9,20 @@ import numpy as np
 
 from scan2plan.config import ScanConfig
 from scan2plan.detection.line_detection import detect_segments_hough
-from scan2plan.detection.morphology import binarize_and_clean
+from scan2plan.detection.morphology import binarize_density_map, morphological_cleanup
 from scan2plan.detection.segment_fusion import fuse_collinear_segments
 from scan2plan.io.readers import read_point_cloud
 from scan2plan.io.writers import write_segments_to_dxf
 from scan2plan.preprocessing.downsampling import voxel_downsample
-from scan2plan.preprocessing.floor_ceiling import detect_floor_and_ceiling, filter_vertical_range
+from scan2plan.preprocessing.floor_ceiling import (
+    detect_floor,
+    detect_ceiling,
+    filter_vertical_range,
+)
 from scan2plan.preprocessing.outlier_removal import remove_statistical_outliers
 from scan2plan.qa.metrics import compute_basic_metrics
 from scan2plan.qa.validator import validate_plan
-from scan2plan.slicing.density_map import compute_density_map
+from scan2plan.slicing.density_map import create_density_map
 from scan2plan.slicing.slicer import extract_slice
 from scan2plan.utils.coordinate import segments_pixel_to_metric
 from scan2plan.vectorization.topology import remove_short_segments
@@ -77,11 +81,18 @@ def run_pipeline(
     )
 
     # Étape 4 — Détection sol/plafond
-    z_floor, z_ceiling = detect_floor_and_ceiling(
+    z_floor, _ = detect_floor(
         points,
-        config.floor_ceiling.ransac_distance,
-        config.floor_ceiling.ransac_iterations,
-        config.floor_ceiling.normal_tolerance_deg,
+        distance_threshold=config.floor_ceiling.ransac_distance,
+        num_iterations=config.floor_ceiling.ransac_iterations,
+        normal_tolerance_deg=config.floor_ceiling.normal_tolerance_deg,
+    )
+    z_ceiling, _ = detect_ceiling(
+        points,
+        floor_z=z_floor,
+        distance_threshold=config.floor_ceiling.ransac_distance,
+        num_iterations=config.floor_ceiling.ransac_iterations,
+        normal_tolerance_deg=config.floor_ceiling.normal_tolerance_deg,
     )
 
     # Étape 5 — Filtrage vertical
@@ -89,19 +100,20 @@ def run_pipeline(
 
     # Étape 6 — Slice médiane (MVP : une seule slice)
     median_height = config.slicing.heights[1] if len(config.slicing.heights) > 1 else 1.10
-    slice_points = extract_slice(
+    slice_xy = extract_slice(
         points,
-        z_floor=z_floor,
         height=median_height,
         thickness=config.slicing.thickness,
+        floor_z=z_floor,
     )
 
     # Étape 7 — Density map
-    dmap = compute_density_map(slice_points, config.density_map.resolution)
+    dmap = create_density_map(slice_xy, config.density_map.resolution)
 
     # Étape 8 — Binarisation + morphologie
-    binary = binarize_and_clean(
-        dmap.image,
+    binary_raw = binarize_density_map(dmap.image)
+    binary = morphological_cleanup(
+        binary_raw,
         config.morphology.kernel_size,
         config.morphology.close_iterations,
         config.morphology.open_iterations,
@@ -127,6 +139,7 @@ def run_pipeline(
         dmap.x_min,
         dmap.y_min,
         dmap.resolution,
+        dmap.height,
     )
 
     # Étape 10 — Fusion

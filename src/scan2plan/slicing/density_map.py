@@ -11,57 +11,66 @@ logger = logging.getLogger(__name__)
 
 
 @dataclass
-class DensityMap:
+class DensityMapResult:
     """Résultat d'une projection 2D d'une slice.
+
+    Convention image : row 0 est en haut (Y métrique maximal).
+    L'axe Y image est inversé par rapport à l'axe Y métrique.
 
     Attributes:
         image: Array 2D (H, W) uint16 — densité de points par pixel.
         x_min: Coordonnée X minimale du raster (mètres).
         y_min: Coordonnée Y minimale du raster (mètres).
         resolution: Taille d'un pixel en mètres/pixel.
+        width: Largeur du raster en pixels (axe X).
+        height: Hauteur du raster en pixels (axe Y image).
     """
 
     image: np.ndarray
     x_min: float
     y_min: float
     resolution: float
+    width: int
+    height: int
 
     @property
     def shape(self) -> tuple[int, int]:
         """Forme du raster (hauteur, largeur) en pixels."""
-        return self.image.shape  # type: ignore[return-value]
+        return (self.height, self.width)
 
 
-def compute_density_map(
-    slice_points: np.ndarray,
-    resolution: float,
+def create_density_map(
+    points_2d: np.ndarray,
+    resolution: float = 0.005,
     margin: float = 0.5,
-) -> DensityMap:
-    """Projette une slice de points sur le plan XY et calcule la density map.
+) -> DensityMapResult:
+    """Projette des points XY sur un raster et calcule la density map.
+
+    L'axe Y de l'image est inversé : row 0 correspond au Y métrique maximal
+    (convention image standard, compatible OpenCV et matplotlib avec origin='upper').
 
     Args:
-        slice_points: Array (N, 3) float64 — points de la tranche.
-        resolution: Taille d'un pixel en mètres/pixel.
-        margin: Marge ajoutée autour de la bounding box (mètres).
+        points_2d: Array (M, 2) float64 — coordonnées XY des points de la tranche.
+        resolution: Taille d'un pixel en mètres/pixel. Défaut : 0.005 m.
+        margin: Marge ajoutée autour de la bounding box (mètres). Défaut : 0.5 m.
 
     Returns:
-        DensityMap avec l'image de densité et les paramètres de géoréférencement.
+        DensityMapResult avec l'image de densité et les paramètres de géoréférencement.
 
     Raises:
-        ValueError: Si ``resolution`` <= 0 ou slice vide.
+        ValueError: Si ``resolution`` <= 0 ou ``points_2d`` vide.
 
     Example:
-        >>> dmap = compute_density_map(slice_pts, resolution=0.005)
-        >>> dmap.image.shape
-        (800, 1000)
+        >>> dmap = create_density_map(slice_xy, resolution=0.005)
+        >>> dmap.image.shape  # (H, W)
     """
     if resolution <= 0:
         raise ValueError(f"resolution doit être > 0, reçu : {resolution}")
-    if len(slice_points) == 0:
-        raise ValueError("La slice est vide.")
+    if len(points_2d) == 0:
+        raise ValueError("Le tableau de points est vide.")
 
-    x = slice_points[:, 0]
-    y = slice_points[:, 1]
+    x = points_2d[:, 0]
+    y = points_2d[:, 1]
 
     x_min = float(x.min()) - margin
     x_max = float(x.max()) + margin
@@ -77,8 +86,9 @@ def compute_density_map(
         bins=[n_cols, n_rows],
         range=[[x_min, x_min + n_cols * resolution], [y_min, y_min + n_rows * resolution]],
     )
-    # histogram2d retourne (n_cols, n_rows) ; on transpose pour (rows, cols) = (H, W)
-    image = np.clip(hist.T, 0, np.iinfo(np.uint16).max).astype(np.uint16)
+    # histogram2d retourne (n_cols, n_rows) ; on transpose pour (rows=H, cols=W)
+    # Puis on inverse l'axe Y pour que row 0 = Y maximal (convention image)
+    image = np.clip(hist.T[::-1, :], 0, np.iinfo(np.uint16).max).astype(np.uint16)
 
     logger.debug(
         "Density map : %d × %d px (%.1f × %.1f m) — résolution %.1f mm/px — max densité : %d.",
@@ -89,4 +99,11 @@ def compute_density_map(
         resolution * 1000,
         int(image.max()),
     )
-    return DensityMap(image=image, x_min=x_min, y_min=y_min, resolution=resolution)
+    return DensityMapResult(
+        image=image,
+        x_min=x_min,
+        y_min=y_min,
+        resolution=resolution,
+        width=n_cols,
+        height=n_rows,
+    )

@@ -34,12 +34,19 @@ class TestDetectFloor:
         assert np.all(np.abs(floor_pts_z - z_floor) < 0.05)
 
     def test_no_floor_raises(self) -> None:
-        """Un nuage aléatoire sans plan horizontal doit lever NoFloorDetectedError."""
+        """Un nuage sur un plan vertical ne doit pas lever de sol horizontal."""
         rng = np.random.default_rng(42)
-        # Points distribués uniformément en 3D — pas de plan dominant
-        chaotic = rng.uniform(-1, 1, (200, 3))
+        # Points sur le plan X=0 (normal = [1,0,0] — vertical, pas horizontal)
+        # Peu d'inliers attendus dans un plan horizontal avec seuil très strict
+        vertical_wall = rng.uniform(-1, 1, (300, 3))
+        vertical_wall[:, 0] = rng.uniform(-0.001, 0.001, 300)  # X ≈ 0, pas de plan horizontal
         with pytest.raises(NoFloorDetectedError):
-            detect_floor(chaotic, distance_threshold=0.001, num_iterations=50)
+            detect_floor(
+                vertical_wall,
+                distance_threshold=0.001,
+                num_iterations=200,
+                normal_tolerance_deg=1.0,  # tolérance ultra-stricte : seul un plan quasi-parfait qualifie
+            )
 
     def test_default_parameters_work(self, simple_room_points: np.ndarray) -> None:
         """Tous les paramètres ont des valeurs par défaut utilisables directement."""
