@@ -272,6 +272,54 @@ def plot_slice_pipeline(
     plt.show()
 
 
+def plot_detected_segments(
+    density_map_result: "scan2plan.slicing.density_map.DensityMapResult",
+    segments: "list[scan2plan.detection.line_detection.DetectedSegment]",
+    title: str,
+) -> None:
+    """Overlay les segments détectés sur la density map avec une couleur par confiance.
+
+    Les segments sont colorés selon leur score de confiance (jet : bleu=faible,
+    rouge=élevé). L'épaisseur du trait est proportionnelle à la confiance.
+
+    Args:
+        density_map_result: Résultat de la density map (image + géoréférencement).
+        segments: Liste de ``DetectedSegment`` en coordonnées métriques.
+        title: Titre de la figure.
+
+    Example:
+        >>> plot_detected_segments(dmap, segments, "Segments détectés slice 1.10 m")
+    """
+    import matplotlib.cm as cm
+    import matplotlib.pyplot as plt
+
+    dmap = density_map_result
+    h, w = dmap.height, dmap.width
+    extent = [dmap.x_min, dmap.x_min + w * dmap.resolution,
+              dmap.y_min, dmap.y_min + h * dmap.resolution]
+
+    _, ax = plt.subplots(figsize=(10, 8))
+    ax.imshow(dmap.image, origin="upper", extent=extent, cmap="gray", interpolation="nearest")
+
+    cmap = cm.get_cmap("jet")
+    for seg in segments:
+        color = cmap(seg.confidence)
+        lw = 1.0 + seg.confidence * 2.0
+        ax.plot([seg.x1, seg.x2], [seg.y1, seg.y2], color=color, linewidth=lw)
+
+    ax.set_xlabel(_LABEL_X)
+    ax.set_ylabel(_LABEL_Y)
+    ax.set_title(title)
+
+    sm = plt.cm.ScalarMappable(cmap=cmap, norm=plt.Normalize(vmin=0, vmax=1))
+    sm.set_array([])
+    plt.colorbar(sm, ax=ax, label="Confiance")
+
+    logger.debug("plot_detected_segments : %d segments.", len(segments))
+    plt.tight_layout()
+    plt.show()
+
+
 def save_figure(fig: "matplotlib.figure.Figure", path: Path) -> None:
     """Sauvegarde une figure matplotlib en PNG.
 

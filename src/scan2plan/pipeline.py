@@ -8,7 +8,7 @@ from pathlib import Path
 import numpy as np
 
 from scan2plan.config import ScanConfig
-from scan2plan.detection.line_detection import detect_segments_hough
+from scan2plan.detection.line_detection import detect_lines_hough
 from scan2plan.detection.morphology import binarize_density_map, morphological_cleanup
 from scan2plan.detection.segment_fusion import fuse_collinear_segments
 from scan2plan.io.readers import read_point_cloud
@@ -24,7 +24,6 @@ from scan2plan.qa.metrics import compute_basic_metrics
 from scan2plan.qa.validator import validate_plan
 from scan2plan.slicing.density_map import create_density_map
 from scan2plan.slicing.slicer import extract_slice
-from scan2plan.utils.coordinate import segments_pixel_to_metric
 from scan2plan.vectorization.topology import remove_short_segments
 from scan2plan.vectorization.wall_builder import build_wall_entities
 
@@ -119,36 +118,32 @@ def run_pipeline(
         config.morphology.open_iterations,
     )
 
-    # Étape 9 — Hough
-    segments_px = detect_segments_hough(
+    # Étape 9 — Hough (retourne des DetectedSegment en coordonnées métriques)
+    detected = detect_lines_hough(
         binary,
+        dmap,
         rho=config.hough.rho,
         theta_deg=config.hough.theta_deg,
         threshold=config.hough.threshold,
         min_line_length=config.hough.min_line_length,
         max_line_gap=config.hough.max_line_gap,
+        source_slice="mid",
     )
 
-    if len(segments_px) == 0:
+    if not detected:
         logger.error("Aucun segment détecté par Hough. Le DXF ne sera pas produit.")
         return
 
-    # Conversion pixel → mètres
-    segments_m = segments_pixel_to_metric(
-        segments_px.astype(np.float64),
-        dmap.x_min,
-        dmap.y_min,
-        dmap.resolution,
-        dmap.height,
-    )
-
-    # Étape 10 — Fusion
-    segments_m = fuse_collinear_segments(
-        segments_m,
+    # Étape 10 — Fusion des segments colinéaires
+    fused = fuse_collinear_segments(
+        detected,
         config.segment_fusion.angle_tolerance_deg,
         config.segment_fusion.perpendicular_dist,
         config.segment_fusion.max_gap,
     )
+
+    # Conversion DetectedSegment → np.ndarray (M, 4) pour les étapes aval (stubs V1)
+    segments_m = np.array([[s.x1, s.y1, s.x2, s.y2] for s in fused], dtype=np.float64)
 
     # Étape 11 — Micro-segments
     segments_m = remove_short_segments(segments_m, config.topology.min_segment_length)
