@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import logging
+import os
 from pathlib import Path
 from typing import TYPE_CHECKING
 
@@ -15,6 +16,13 @@ logger = logging.getLogger(__name__)
 
 _DEFAULT_SAMPLE_SIZE = 50_000
 _FIGURE_DPI = 150
+_LABEL_X = "X (m)"
+_LABEL_Y = "Y (m)"
+_LABEL_Z = "Z (m)"
+
+# Entropie système explicite : la visualisation n'a pas besoin de reproductibilité,
+# chaque affichage peut montrer un sous-ensemble différent.
+_RNG = np.random.default_rng(seed=int.from_bytes(os.urandom(8), "little"))
 
 
 def plot_point_cloud_3d(
@@ -49,9 +57,9 @@ def plot_point_cloud_3d(
         cmap="viridis",
         linewidths=0,
     )
-    ax.set_xlabel("X (m)")
-    ax.set_ylabel("Y (m)")
-    ax.set_zlabel("Z (m)")
+    ax.set_xlabel(_LABEL_X)
+    ax.set_ylabel(_LABEL_Y)
+    ax.set_zlabel(_LABEL_Z)
     ax.set_title(title)
     ax.set_aspect("equal", adjustable="box")
     logger.debug("Affichage 3D : %d / %d points.", len(displayed), len(points))
@@ -74,10 +82,10 @@ def plot_point_cloud_2d(points: np.ndarray, title: str) -> None:
     """
     import matplotlib.pyplot as plt
 
-    fig, ax = plt.subplots(figsize=(10, 8))
+    _, ax = plt.subplots(figsize=(10, 8))
     ax.scatter(points[:, 0], points[:, 1], s=0.3, c="steelblue", linewidths=0)
-    ax.set_xlabel("X (m)")
-    ax.set_ylabel("Y (m)")
+    ax.set_xlabel(_LABEL_X)
+    ax.set_ylabel(_LABEL_Y)
     ax.set_title(title)
     ax.set_aspect("equal")
     logger.debug("Affichage 2D : %d points.", len(points))
@@ -111,7 +119,7 @@ def plot_density_map(
         origin[1],
         origin[1] + h * resolution,
     ]
-    fig, ax = plt.subplots(figsize=(10, 8))
+    _, ax = plt.subplots(figsize=(10, 8))
     ax.imshow(
         density_map,
         origin="lower",
@@ -119,11 +127,87 @@ def plot_density_map(
         cmap="hot",
         interpolation="nearest",
     )
-    ax.set_xlabel("X (m)")
-    ax.set_ylabel("Y (m)")
+    ax.set_xlabel(_LABEL_X)
+    ax.set_ylabel(_LABEL_Y)
     ax.set_title(title)
     plt.colorbar(ax.images[0], ax=ax, label="Densité (pts/pixel)")
     plt.tight_layout()
+    plt.show()
+
+
+def plot_preprocessing_results(
+    original: np.ndarray,
+    downsampled: np.ndarray,
+    filtered: np.ndarray,
+    floor_z: float,
+    ceiling_z: float,
+    sample_size: int = _DEFAULT_SAMPLE_SIZE,
+) -> None:
+    """Affiche les résultats des étapes de prétraitement en une figure 2×2.
+
+    Les quatre vues montrent : nuage brut, après downsampling, après filtrage
+    vertical, et un profil XZ avec les niveaux sol/plafond annotés.
+
+    Args:
+        original: Array (N, 3) — nuage brut d'entrée.
+        downsampled: Array (M, 3) — après voxel downsampling.
+        filtered: Array (K, 3) — après filtrage vertical.
+        floor_z: Altitude du sol détecté (mètres).
+        ceiling_z: Altitude du plafond détecté (mètres).
+        sample_size: Nombre maximal de points à afficher par vue.
+
+    Example:
+        >>> plot_preprocessing_results(raw, down, filt, floor_z=0.02, ceiling_z=2.48)
+    """
+    import matplotlib.pyplot as plt
+
+    fig, axes = plt.subplots(2, 2, figsize=(14, 10))
+    fig.suptitle("Résultats du prétraitement", fontsize=14, fontweight="bold")
+
+    # -- Vue 1 : nuage brut (projection XY) --
+    ax = axes[0, 0]
+    pts = _subsample(original, sample_size)
+    ax.scatter(pts[:, 0], pts[:, 1], s=0.3, c="gray", linewidths=0)
+    ax.set_title(f"Nuage brut ({len(original):,} pts)")
+    ax.set_xlabel(_LABEL_X)
+    ax.set_ylabel(_LABEL_Y)
+    ax.set_aspect("equal")
+
+    # -- Vue 2 : après downsampling (projection XY) --
+    ax = axes[0, 1]
+    pts = _subsample(downsampled, sample_size)
+    ax.scatter(pts[:, 0], pts[:, 1], s=0.5, c="steelblue", linewidths=0)
+    ratio = len(original) / max(len(downsampled), 1)
+    ax.set_title(f"Après downsampling ({len(downsampled):,} pts, ×{ratio:.1f})")
+    ax.set_xlabel(_LABEL_X)
+    ax.set_ylabel(_LABEL_Y)
+    ax.set_aspect("equal")
+
+    # -- Vue 3 : après filtrage vertical (projection XY) --
+    ax = axes[1, 0]
+    pts = _subsample(filtered, sample_size)
+    ax.scatter(pts[:, 0], pts[:, 1], s=0.5, c="seagreen", linewidths=0)
+    ax.set_title(f"Après filtrage vertical ({len(filtered):,} pts)")
+    ax.set_xlabel(_LABEL_X)
+    ax.set_ylabel(_LABEL_Y)
+    ax.set_aspect("equal")
+
+    # -- Vue 4 : profil XZ avec sol/plafond annotés --
+    ax = axes[1, 1]
+    pts = _subsample(downsampled, sample_size)
+    ax.scatter(pts[:, 0], pts[:, 2], s=0.3, c="steelblue", alpha=0.4, linewidths=0)
+    ax.axhline(floor_z, color="orangered", linewidth=1.5, label=f"Sol Z={floor_z:.3f} m")
+    ax.axhline(ceiling_z, color="purple", linewidth=1.5, label=f"Plafond Z={ceiling_z:.3f} m")
+    ax.set_title("Profil XZ avec sol/plafond")
+    ax.set_xlabel(_LABEL_X)
+    ax.set_ylabel(_LABEL_Z)
+    ax.legend(fontsize=8)
+
+    plt.tight_layout()
+    logger.debug(
+        "plot_preprocessing_results : brut=%d, down=%d, filtré=%d, sol=%.3f m, plafond=%.3f m.",
+        len(original), len(downsampled), len(filtered), floor_z, ceiling_z,
+    )
     plt.show()
 
 
@@ -161,5 +245,5 @@ def _subsample(points: np.ndarray, max_count: int) -> np.ndarray:
     """
     if len(points) <= max_count:
         return points
-    idx = np.random.choice(len(points), size=max_count, replace=False)
+    idx = _RNG.choice(len(points), size=max_count, replace=False)
     return points[idx]

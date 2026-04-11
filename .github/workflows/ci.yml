@@ -1,0 +1,90 @@
+name: CI
+
+on:
+  push:
+    branches: [main, dev]
+  pull_request:
+    branches: [main, dev]
+
+jobs:
+  test:
+    name: Test (Python ${{ matrix.python-version }}, ${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest]
+        python-version: ["3.12"]
+
+    steps:
+      # ----------------------------------------------------------------
+      # 1. Checkout
+      # ----------------------------------------------------------------
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      # ----------------------------------------------------------------
+      # 2. Setup Python 3.12
+      # ----------------------------------------------------------------
+      - name: Set up Python ${{ matrix.python-version }}
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+
+      # ----------------------------------------------------------------
+      # 3. Cache pip — accélère les runs suivants
+      # ----------------------------------------------------------------
+      - name: Cache pip
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cache/pip
+            ~\AppData\Local\pip\Cache
+          key: ${{ runner.os }}-pip-${{ matrix.python-version }}-${{ hashFiles('pyproject.toml') }}
+          restore-keys: |
+            ${{ runner.os }}-pip-${{ matrix.python-version }}-
+
+      # ----------------------------------------------------------------
+      # 4. Upgrade pip + install package + dev deps
+      # ----------------------------------------------------------------
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -e ".[dev]"
+
+      # ----------------------------------------------------------------
+      # 5. Générer la fixture synthétique si absente
+      #    (simple_room.npy n'est pas commité — .gitignore l'exclut pas,
+      #     mais on la génère proprement à chaque run)
+      # ----------------------------------------------------------------
+      - name: Generate test fixtures
+        run: python tests/fixtures/generate_fixtures.py
+
+      # ----------------------------------------------------------------
+      # 6. Lancer les tests avec couverture de code
+      # ----------------------------------------------------------------
+      - name: Run tests
+        run: >-
+          python -m pytest tests/
+          --cov=scan2plan
+          --cov-report=term-missing
+          --cov-report=xml:coverage.xml
+          --tb=short
+          -v
+
+      # ----------------------------------------------------------------
+      # 7. Upload du rapport de couverture vers Codecov (optionnel)
+      #    Décommenter si le dépôt est connecté à Codecov
+      # ----------------------------------------------------------------
+      # - name: Upload coverage to Codecov
+      #   uses: codecov/codecov-action@v4
+      #   with:
+      #     files: coverage.xml
+      #     flags: ${{ matrix.os }}-py${{ matrix.python-version }}
+
+      # ----------------------------------------------------------------
+      # 8. Vérifier que la CLI répond (smoke test)
+      # ----------------------------------------------------------------
+      - name: Smoke test CLI
+        run: scan2plan --help
