@@ -22,8 +22,14 @@ from scan2plan.preprocessing.floor_ceiling import (
     filter_vertical_range,
 )
 from scan2plan.preprocessing.outlier_removal import remove_statistical_outliers
+from scan2plan.detection.multi_slice_filter import (
+    classify_segments,
+    get_door_candidates,
+    get_window_candidates,
+    match_segments_across_slices,
+)
 from scan2plan.slicing.density_map import DensityMapResult, create_density_map
-from scan2plan.slicing.slicer import extract_slice
+from scan2plan.slicing.slicer import extract_multi_slices
 
 logger = logging.getLogger(__name__)
 
@@ -112,12 +118,11 @@ class Scan2PlanPipeline:
         4. Détection du sol par RANSAC.
         5. Détection du plafond par RANSAC.
         6. Filtrage vertical.
-        7. Extraction de slice médiane (~1.10 m).
-        8. Création de density map.
-        9. Binarisation + nettoyage morphologique.
-        10. Détection de segments par Hough.
-        11. Fusion de segments colinéaires.
-        12. Export DXF.
+        7. Extraction de 3 slices (high/mid/low).
+        8. Density map + binarisation + Hough pour chaque slice.
+        9. Filtrage multi-slice : murs vs mobilier vs ouvertures.
+        10. Fusion de segments colinéaires.
+        11. Export DXF.
 
         Args:
             input_path: Chemin du fichier nuage de points (E57, LAS, LAZ).
@@ -133,7 +138,7 @@ class Scan2PlanPipeline:
         t_start = time.monotonic()
         result = PipelineResult(input_path=input_path, output_path=output_path)
 
-        self.logger.info("=== Scan2Plan — démarrage du pipeline MVP ===")
+        self.logger.info("=== Scan2Plan — démarrage du pipeline V1 ===")
         self.logger.info("Entrée  : %s", input_path)
         self.logger.info("Sortie  : %s", output_path)
 
@@ -193,75 +198,118 @@ class Scan2PlanPipeline:
             if save_intermediates:
                 self._save_npy(points, output_path, "points_preprocessed")
 
-            # ---- Étape 7 : Slice -------------------------------------------
+            # ---- Étape 7 : Multi-slices ------------------------------------
             cfg_sl = self.config.slicing
-            median_height = cfg_sl.heights[1] if len(cfg_sl.heights) > 1 else 1.10
-            slice_xy = self._step(
-                f"Slice h={median_height:.2f} m",
-                lambda: extract_slice(
+            slices_xy: dict[str, np.ndarray] = self._step(
+                "Extraction multi-slices",
+                lambda: extract_multi_slices(
                     points,
-                    height=median_height,
+                    heights=cfg_sl.heights,
                     thickness=cfg_sl.thickness,
                     floor_z=z_floor,
                 ),
             )
-            result.num_points_in_slice = len(slice_xy)
+            # La slice médiane (ou la plus proche de 1.10m) est la référence
+            # pour la métrique num_points_in_slice
+            mid_slice = slices_xy.get("mid", slices_xy.get("high", np.empty((0, 2))))
+            result.num_points_in_slice = len(mid_slice)
 
-            # ---- Étape 8 : Density map -------------------------------------
-            dmap: DensityMapResult = self._step(
-                "Density map",
-                lambda: create_density_map(slice_xy, self.config.density_map.resolution),
-            )
-
-            if save_intermediates:
-                self._save_density_map_png(dmap, output_path, "density_map")
-
-            # ---- Étape 9 : Binarisation + morphologie ----------------------
-            cfg_morph = self.config.morphology
-            binary_raw = self._step("Binarisation Otsu", lambda: binarize_density_map(dmap.image))
-            binary = self._step(
-                "Nettoyage morphologique",
-                lambda: morphological_cleanup(
-                    binary_raw,
-                    cfg_morph.kernel_size,
-                    cfg_morph.close_iterations,
-                    cfg_morph.open_iterations,
-                ),
-            )
-
-            if save_intermediates:
-                self._save_image_png(binary, output_path, "binary_cleaned")
-
-            # ---- Étape 10 : Hough ------------------------------------------
+            # ---- Étape 8 : Density map + Hough pour chaque slice -----------
             cfg_h = self.config.hough
-            detected: list[DetectedSegment] = self._step(
-                "Hough",
-                lambda: detect_lines_hough(
-                    binary,
-                    dmap,
-                    rho=cfg_h.rho,
-                    theta_deg=cfg_h.theta_deg,
-                    threshold=cfg_h.threshold,
-                    min_line_length=cfg_h.min_line_length,
-                    max_line_gap=cfg_h.max_line_gap,
-                    source_slice="mid",
+            cfg_morph = self.config.morphology
+            segments_by_slice: dict[str, list[DetectedSegment]] = {}
+            all_detected: list[DetectedSegment] = []
+
+            for label, slice_xy in slices_xy.items():
+                if len(slice_xy) == 0:
+                    segments_by_slice[label] = []
+                    continue
+
+                dmap: DensityMapResult = self._step(
+                    f"Density map [{label}]",
+                    lambda s=slice_xy: create_density_map(s, self.config.density_map.resolution),
+                )
+
+                if save_intermediates and label == "mid":
+                    self._save_density_map_png(dmap, output_path, f"density_map_{label}")
+
+                binary_raw = self._step(
+                    f"Binarisation [{label}]",
+                    lambda d=dmap: binarize_density_map(d.image),
+                )
+                binary = self._step(
+                    f"Morphologie [{label}]",
+                    lambda b=binary_raw: morphological_cleanup(
+                        b,
+                        cfg_morph.kernel_size,
+                        cfg_morph.close_iterations,
+                        cfg_morph.open_iterations,
+                    ),
+                )
+
+                segs: list[DetectedSegment] = self._step(
+                    f"Hough [{label}]",
+                    lambda b=binary, d=dmap, lbl=label: detect_lines_hough(
+                        b,
+                        d,
+                        rho=cfg_h.rho,
+                        theta_deg=cfg_h.theta_deg,
+                        threshold=cfg_h.threshold,
+                        min_line_length=cfg_h.min_line_length,
+                        max_line_gap=cfg_h.max_line_gap,
+                        source_slice=lbl,
+                    ),
+                )
+                segments_by_slice[label] = segs
+                all_detected.extend(segs)
+
+            result.num_segments_detected = len(all_detected)
+
+            if not any(segments_by_slice.get("high", [])):
+                msg = "Aucun segment détecté en slice haute — résultat potentiellement incomplet."
+                self.logger.warning(msg)
+                result.warnings.append(msg)
+
+            # ---- Étape 9 : Filtrage multi-slice ----------------------------
+            cfg_msf = self.config._data.get("multi_slice_filter", {})
+            angle_tol = float(cfg_msf.get("angle_tolerance_deg", 5.0))
+            dist_tol = float(cfg_msf.get("distance_tolerance", 0.10))
+
+            matches = self._step(
+                "Recoupement multi-slice",
+                lambda: match_segments_across_slices(
+                    segments_by_slice,
+                    angle_tolerance_deg=angle_tol,
+                    distance_tolerance=dist_tol,
                 ),
             )
-            result.num_segments_detected = len(detected)
+            wall_segments: list[DetectedSegment] = self._step(
+                "Classification segments",
+                lambda: classify_segments(matches),
+            )
 
-            if not detected:
-                msg = "Aucun segment détecté par Hough — le DXF ne sera pas produit."
+            # Stocker les candidats ouvertures pour les sprints suivants
+            self._door_candidates = get_door_candidates(matches)
+            self._window_candidates = get_window_candidates(matches)
+            self.logger.info(
+                "Ouvertures candidates : %d portes, %d fenêtres.",
+                len(self._door_candidates),
+                len(self._window_candidates),
+            )
+
+            if not wall_segments:
+                msg = "Aucun segment de mur confirmé après filtrage multi-slice."
                 self.logger.error(msg)
                 result.warnings.append(msg)
                 result.execution_time_seconds = time.monotonic() - t_start
                 return result
 
-            # ---- Étape 11 : Fusion -----------------------------------------
+            # ---- Étape 10 : Fusion -----------------------------------------
             cfg_sf = self.config.segment_fusion
             fused: list[DetectedSegment] = self._step(
                 "Fusion segments",
                 lambda: fuse_collinear_segments(
-                    detected,
+                    wall_segments,
                     cfg_sf.angle_tolerance_deg,
                     cfg_sf.perpendicular_dist,
                     cfg_sf.max_gap,
@@ -270,9 +318,13 @@ class Scan2PlanPipeline:
             result.num_segments_after_fusion = len(fused)
 
             if debug_visualizations:
-                self._save_segment_visualization(dmap, fused, output_path)
+                # Visualisation sur la density map de la slice mid
+                mid_slice_xy = slices_xy.get("mid", np.empty((0, 2)))
+                if len(mid_slice_xy) > 0:
+                    dmap_mid = create_density_map(mid_slice_xy, self.config.density_map.resolution)
+                    self._save_segment_visualization(dmap_mid, fused, output_path)
 
-            # ---- Étape 12 : Export DXF -------------------------------------
+            # ---- Étape 11 : Export DXF -------------------------------------
             final_path = self._step(
                 "Export DXF",
                 lambda: export_dxf(

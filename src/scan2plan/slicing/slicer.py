@@ -63,6 +63,49 @@ def extract_slice(
     return result_xy
 
 
+_SLICE_LABELS = ("high", "mid", "low")
+
+
+def extract_multi_slices(
+    points: np.ndarray,
+    heights: list[float],
+    thickness: float = 0.10,
+    floor_z: float = 0.0,
+) -> dict[str, np.ndarray]:
+    """Extrait trois tranches horizontales et les labellise "high", "mid", "low".
+
+    Les hauteurs sont triées par ordre décroissant avant attribution des labels.
+    La liste doit contenir au moins 1 hauteur ; si elle en contient moins de 3,
+    les labels manquants sont absents du dictionnaire retourné.
+
+    Args:
+        points: Array (N, 3) float64 — nuage complet.
+        heights: Liste des hauteurs relatives au sol (mètres).
+            Typiquement ``[2.10, 1.10, 0.20]`` depuis ``default_params.yaml``.
+        thickness: Épaisseur commune des tranches (mètres). Défaut : 0.10 m.
+        floor_z: Altitude du sol en mètres. Défaut : 0.0.
+
+    Returns:
+        Dictionnaire ``{"high": array_2d, "mid": array_2d, "low": array_2d}``
+        (subset si ``len(heights) < 3``). Chaque valeur est un array (M, 2).
+
+    Example:
+        >>> slices = extract_multi_slices(points, heights=[2.10, 1.10, 0.20])
+        >>> slices["high"].shape  # (M, 2)
+    """
+    sorted_heights = sorted(heights, reverse=True)
+    result: dict[str, np.ndarray] = {}
+    for label, h in zip(_SLICE_LABELS, sorted_heights):
+        result[label] = extract_slice(points, h, thickness, floor_z)
+    logger.info(
+        "Multi-slice extraites : %s (floor_z=%.3f m, épaisseur=%.2f m).",
+        {lbl: f"h={h:.2f}m n={len(result[lbl])}" for lbl, h in zip(_SLICE_LABELS, sorted_heights)},
+        floor_z,
+        thickness,
+    )
+    return result
+
+
 def extract_all_slices(
     points: np.ndarray,
     heights: list[float],
