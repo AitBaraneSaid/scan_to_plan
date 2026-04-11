@@ -12,6 +12,7 @@ logger = logging.getLogger(__name__)
 # Extensions reconnues
 _E57_EXTENSIONS = {".e57"}
 _LAS_EXTENSIONS = {".las", ".laz"}
+_NPY_EXTENSIONS = {".npy"}   # Tableaux NumPy — usage interne et tests
 
 
 class UnsupportedFormatError(ValueError):
@@ -214,13 +215,39 @@ def read_point_cloud(path: Path) -> np.ndarray:
         return read_e57(path)
     if suffix in _LAS_EXTENSIONS:
         return read_las(path)
+    if suffix in _NPY_EXTENSIONS:
+        return _read_npy(path)
 
-    supported = sorted(_E57_EXTENSIONS | _LAS_EXTENSIONS)
+    supported = sorted(_E57_EXTENSIONS | _LAS_EXTENSIONS | _NPY_EXTENSIONS)
     raise UnsupportedFormatError(
         f"Format non supporté : '{suffix}'. "
         f"Formats acceptés : {supported}. "
         f"Convertissez le fichier en E57 ou LAS avant de relancer le pipeline."
     )
+
+
+def _read_npy(path: Path) -> np.ndarray:
+    """Charge un tableau NumPy (N, 3) depuis un fichier .npy.
+
+    Usage interne : tests, fichiers intermédiaires sauvegardés par le pipeline.
+
+    Args:
+        path: Chemin vers le fichier .npy.
+
+    Returns:
+        Array (N, 3) float64.
+
+    Raises:
+        ValueError: Si le tableau n'est pas de forme (N, 3).
+    """
+    points = np.load(str(path)).astype(np.float64)
+    if points.ndim != 2 or points.shape[1] != 3:
+        raise ValueError(
+            f"Le fichier .npy doit contenir un tableau (N, 3), "
+            f"reçu : {points.shape}"
+        )
+    _log_point_cloud_info(points, path, "NPY")
+    return points
 
 
 def _log_point_cloud_info(points: np.ndarray, path: Path, fmt: str) -> None:
