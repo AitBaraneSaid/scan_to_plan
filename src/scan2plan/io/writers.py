@@ -11,6 +11,7 @@ import numpy as np
 if TYPE_CHECKING:
     import ezdxf.document
     from scan2plan.detection.line_detection import DetectedSegment
+    from scan2plan.detection.openings import Opening
 
 logger = logging.getLogger(__name__)
 
@@ -176,6 +177,81 @@ def setup_dxf_layers(
         "Calques DXF configurés : %s.",
         ", ".join(str(v) for v in layer_config.values()),
     )
+
+
+def export_openings_to_dxf(
+    openings: "list[Opening]",
+    doc: "ezdxf.document.Drawing",
+    layer_config: dict | None = None,
+) -> int:
+    """Ajoute les ouvertures dans un document DXF existant.
+
+    Chaque ouverture est représentée par deux LINE perpendiculaires au mur,
+    aux extrémités de l'ouverture, sur le calque PORTES ou FENETRES.
+
+    Args:
+        openings: Liste d'``Opening`` à exporter.
+        doc: Document ezdxf ouvert (modifié en place).
+        layer_config: Configuration des calques. Si fourni, utilise les noms
+            ``layer_config["doors"]`` et ``layer_config["windows"]``. Sinon,
+            utilise les noms par défaut ``"PORTES"`` et ``"FENETRES"``.
+
+    Returns:
+        Nombre d'entités LINE ajoutées.
+    """
+    door_layer = "PORTES"
+    window_layer = "FENETRES"
+    if layer_config:
+        door_layer = layer_config.get("doors", door_layer)
+        window_layer = layer_config.get("windows", window_layer)
+
+    _add_layer(doc, door_layer, _LAYER_COLORS.get(door_layer, 1))
+    _add_layer(doc, window_layer, _LAYER_COLORS.get(window_layer, 5))
+
+    msp = doc.modelspace()
+    n_entities = 0
+
+    for op in openings:
+        seg = op.wall_segment
+        length = seg.length
+        if length < 1e-9:
+            continue
+
+        # Direction unitaire le long du mur et perpendiculaire
+        dx = (seg.x2 - seg.x1) / length
+        dy = (seg.y2 - seg.y1) / length
+        px, py = -dy, dx   # perpendiculaire, longueur = 1 m
+
+        # Demi-épaisseur du trait perpendiculaire = 10 cm
+        half = 0.10
+        layer = door_layer if op.type == "door" else window_layer
+
+        # Trait au début de l'ouverture
+        sx1 = seg.x1 + op.position_start * dx
+        sy1 = seg.y1 + op.position_start * dy
+        msp.add_line(
+            start=(sx1 - half * px, sy1 - half * py, 0.0),
+            end=(sx1 + half * px, sy1 + half * py, 0.0),
+            dxfattribs={"layer": layer},
+        )
+        n_entities += 1
+
+        # Trait à la fin de l'ouverture
+        ex1 = seg.x1 + op.position_end * dx
+        ey1 = seg.y1 + op.position_end * dy
+        msp.add_line(
+            start=(ex1 - half * px, ey1 - half * py, 0.0),
+            end=(ex1 + half * px, ey1 + half * py, 0.0),
+            dxfattribs={"layer": layer},
+        )
+        n_entities += 1
+
+    logger.info(
+        "export_openings_to_dxf : %d ouvertures → %d entités LINE.",
+        len(openings),
+        n_entities,
+    )
+    return n_entities
 
 
 def _add_layer(doc: "ezdxf.document.Drawing", name: str, color: int) -> None:
