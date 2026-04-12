@@ -77,9 +77,10 @@ def load_profile(profile_name: str) -> dict[str, Any]:
         FileNotFoundError: Si le fichier du profil est introuvable.
 
     Example:
-        >>> params = load_profile("recent")
-        >>> params["regularization"]["snap_tolerance_deg"]
-        3.0
+        ```python
+        params = load_profile("recent")
+        snap_tol = params["regularization"]["snap_tolerance_deg"]  # 3.0
+        ```
     """
     if profile_name not in AVAILABLE_PROFILES:
         raise ValueError(
