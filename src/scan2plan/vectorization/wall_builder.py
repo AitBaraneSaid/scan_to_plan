@@ -416,7 +416,6 @@ def _cut_corner(
     Returns:
         (pair_a_coupée, pair_b_coupée).
     """
-    from scan2plan.utils.geometry import line_intersection
 
     # Identifier les extrémités de contact entre les axes
     # On cherche quelle extrémité de axis_a est proche de axis_b
@@ -486,8 +485,8 @@ def _trim_line_at_intersection(
         Nouveau ``DetectedSegment`` raccourci, ou ``None`` si pas d'intersection
         utilisable.
     """
-    from scan2plan.utils.geometry import line_intersection
     from scan2plan.detection.line_detection import DetectedSegment as DS
+    from scan2plan.utils.geometry import line_intersection
 
     pt = line_intersection(line.as_tuple(), other.as_tuple())
     if pt is None:

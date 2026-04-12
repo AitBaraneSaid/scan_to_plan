@@ -1,0 +1,89 @@
+site_name: Scan2Plan
+site_description: "Transformation d'un nuage de points 3D indoor en plan 2D DXF"
+site_author: AIT BARANE Said
+docs_dir: docs
+site_dir: site
+
+repo_url: https://github.com/AitBaraneSaid/3d_scan_to_2d_plan
+repo_name: AitBaraneSaid/3d_scan_to_2d_plan
+
+# Liens directs en .html — navigation fonctionnelle sans serveur HTTP (file://)
+use_directory_urls: false
+
+theme:
+  name: material
+  language: fr
+  palette:
+    - scheme: default
+      primary: blue
+      accent: light blue
+      toggle:
+        icon: material/weather-night
+        name: Mode sombre
+    - scheme: slate
+      primary: blue
+      accent: light blue
+      toggle:
+        icon: material/weather-sunny
+        name: Mode clair
+  features:
+    - navigation.tabs
+    - navigation.sections
+    - navigation.top
+    - navigation.indexes
+    - search.suggest
+    - search.highlight
+    - content.code.annotate
+    - content.code.copy
+
+plugins:
+  - search:
+      lang: fr
+  - mkdocstrings:
+      handlers:
+        python:
+          paths: [src]
+          options:
+            docstring_style: google
+            show_source: true
+            show_root_heading: true
+            show_symbol_type_heading: true
+            merge_init_into_class: true
+
+nav:
+  - Accueil: index.md
+  - Guide utilisateur:
+      - Installation: guide/installation.md
+      - Prise en main: guide/quickstart.md
+      - Configuration: guide/configuration.md
+      - Formats supportés: guide/formats.md
+      - Profils de paramètres: guide/profiles.md
+  - Pipeline:
+      - Vue d'ensemble: pipeline/overview.md
+      - Paramètres: pipeline/parameters.md
+  - Référence API:
+      - Pipeline: api/pipeline.md
+      - Configuration: api/config.md
+      - I/O: api/io.md
+      - Détection: api/detection.md
+      - Vectorisation: api/vectorization.md
+      - QA: api/qa.md
+  - Développement:
+      - Contribuer: dev/contributing.md
+      - Tests: dev/tests.md
+      - Architecture: dev/architecture.md
+
+markdown_extensions:
+  - admonition
+  - pymdownx.details
+  - pymdownx.superfences
+  - pymdownx.highlight:
+      anchor_linenums: true
+  - pymdownx.inlinehilite
+  - pymdownx.tabbed:
+      alternate_style: true
+  - tables
+  - attr_list
+  - md_in_html
+  - toc:
+      permalink: true

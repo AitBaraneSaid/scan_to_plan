@@ -57,7 +57,7 @@ class Opening:
 def detect_openings_along_wall(
     wall_segment: DetectedSegment,
     density_maps: dict[str, DensityMapResult],
-    binary_images: dict[str, np.ndarray],  # noqa: ARG001 — réservé pour extension future
+    binary_images: dict[str, np.ndarray],
     min_door_width: float = 0.60,
     max_door_width: float = 1.40,
     min_window_width: float = 0.30,

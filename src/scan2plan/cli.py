@@ -152,7 +152,7 @@ def info(
         points = read_point_cloud(input_file)
     except Exception as exc:
         typer.echo(f"Erreur lors de la lecture : {exc}", err=True)
-        raise typer.Exit(code=1)
+        raise typer.Exit(code=1) from None
 
     x_min, y_min, z_min = points.min(axis=0)
     x_max, y_max, z_max = points.max(axis=0)

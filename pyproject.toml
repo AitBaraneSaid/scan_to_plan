@@ -4,15 +4,24 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "scan2plan"
-version = "0.1.0"
+version = "0.2.0"
 description = "Transforme un nuage de points 3D indoor en plan 2D DXF exploitable dans AutoCAD."
 readme = "README.md"
-requires-python = ">=3.12,<3.13"
+requires-python = ">=3.12"
 license = { text = "Proprietary" }
 authors = [{ name = "AIT BARANE Said" }]
+keywords = ["scan", "lidar", "pointcloud", "floor-plan", "dxf", "cad"]
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Intended Audience :: Developers",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+    "Topic :: Scientific/Engineering :: GIS",
+    "Topic :: Scientific/Engineering :: Visualization",
+]
 
 dependencies = [
-    "open3d>=0.18",
     "numpy>=1.26",
     "scipy>=1.12",
     "opencv-python-headless>=4.9",
@@ -20,7 +29,6 @@ dependencies = [
     "shapely>=2.0",
     "networkx>=3.2",
     "ezdxf>=1.2",
-    "pye57>=0.4",
     "laspy[lazrs]>=2.5",
     "matplotlib>=3.8",
     "typer>=0.12",
@@ -28,14 +36,42 @@ dependencies = [
 ]
 
 [project.optional-dependencies]
-dev = ["pytest>=8.0", "pytest-cov>=5.0"]
+# Dépendances optionnelles (nécessitent Python 3.12 — pas supporté sur 3.13+)
+pointcloud = [
+    "open3d>=0.18",
+    "pye57>=0.4",
+]
+# Outillage développeur
+dev = [
+    "pytest>=8.0",
+    "pytest-cov>=5.0",
+    "ruff>=0.4",
+    "mypy>=1.10",
+    "types-PyYAML",
+]
+# Documentation
+docs = [
+    "mkdocs-material>=9.5",
+    "mkdocstrings[python]>=0.25",
+]
 
 [project.scripts]
 scan2plan = "scan2plan.cli:app"
 
+# ---------------------------------------------------------------------------
+# Packaging — inclusion des fichiers de données
+# ---------------------------------------------------------------------------
 [tool.setuptools.packages.find]
 where = ["src"]
 
+[tool.setuptools.package-data]
+scan2plan = ["py.typed"]
+
+# Les fichiers YAML de config sont inclus via MANIFEST.in (hors package Python)
+
+# ---------------------------------------------------------------------------
+# Pytest
+# ---------------------------------------------------------------------------
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 addopts = "-v --tb=short"
@@ -43,3 +79,82 @@ addopts = "-v --tb=short"
 [tool.coverage.run]
 source = ["scan2plan"]
 omit = ["tests/*"]
+
+[tool.coverage.report]
+exclude_lines = [
+    "pragma: no cover",
+    "if TYPE_CHECKING:",
+    "raise NotImplementedError",
+    "@abstractmethod",
+]
+
+# ---------------------------------------------------------------------------
+# Ruff — linter + formateur
+# ---------------------------------------------------------------------------
+[tool.ruff]
+target-version = "py312"
+line-length = 99
+src = ["src"]
+
+[tool.ruff.lint]
+select = [
+    "E",   # pycodestyle erreurs
+    "W",   # pycodestyle warnings
+    "F",   # pyflakes
+    "I",   # isort
+    "B",   # flake8-bugbear
+    "UP",  # pyupgrade
+    "C4",  # flake8-comprehensions
+    "SIM", # flake8-simplify
+    "TCH", # flake8-type-checking
+    "RUF", # ruff-specific rules
+]
+ignore = [
+    "E501",   # longueur de ligne (géré par line-length)
+    "B008",   # function-call-in-default-argument (typer le fait intentionnellement)
+    "SIM108", # ternary-instead-of-if (lisibilité)
+    "RUF012", # mutable-class-attributes (dataclass fields)
+    "UP037",  # Optional[X] → X | None (migration progressive, pas prioritaire)
+    "UP045",  # Optional[X] → X | None dans les annotations (idem)
+    "RUF001", # caractères unicode ambigus dans les docstrings (commentaires français)
+    "RUF002", # idem
+    "RUF003", # idem
+    "TC001",  # TYPE_CHECKING imports (déjà gérés manuellement)
+    "TC002",  # idem
+    "TC003",  # idem
+    "B905",   # zip() sans strict= (comportement voulu)
+    "F821",   # undefined names dans les annotations forward (TYPE_CHECKING)
+    "RUF046", # cast inutile (faux positifs numpy)
+]
+
+[tool.ruff.lint.isort]
+known-first-party = ["scan2plan"]
+
+[tool.ruff.lint.per-file-ignores]
+"tests/**" = ["S101"]  # assert dans les tests
+
+# ---------------------------------------------------------------------------
+# Mypy — vérification de types
+# ---------------------------------------------------------------------------
+[tool.mypy]
+python_version = "3.12"
+strict = false
+warn_return_any = true
+warn_unused_configs = true
+ignore_missing_imports = true
+exclude = ["tests/", "docs/", "notebooks/"]
+
+[[tool.mypy.overrides]]
+module = [
+    "open3d.*",
+    "pye57.*",
+    "laspy.*",
+    "cv2.*",
+    "skimage.*",
+    "scipy.*",
+    "shapely.*",
+    "networkx.*",
+    "ezdxf.*",
+    "yaml.*",
+]
+ignore_missing_imports = true

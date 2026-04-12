@@ -472,6 +472,7 @@ class Scan2PlanPipeline:
         """Sauvegarde la density map en PNG (nécessite matplotlib)."""
         try:
             import matplotlib.pyplot as plt
+
             from scan2plan.utils.visualization import save_figure
             fig, ax = plt.subplots()
             ax.imshow(dmap.image, cmap="hot", origin="upper")
@@ -491,6 +492,7 @@ class Scan2PlanPipeline:
         """Sauvegarde la visualisation des segments détectés en PNG."""
         try:
             import matplotlib.pyplot as plt
+
             from scan2plan.utils.visualization import plot_detected_segments, save_figure
             plot_detected_segments(dmap, segments, "Segments détectés")
             fig = plt.gcf()

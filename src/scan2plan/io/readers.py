@@ -119,7 +119,7 @@ def _get_scan_transform(e57: "pye57.E57", scan_index: int) -> np.ndarray | None:
         matrix[:3, :3] = np.asarray(rot, dtype=np.float64)
         matrix[:3, 3] = np.asarray(trans, dtype=np.float64)
         return matrix
-    except Exception as exc:  # noqa: BLE001
+    except Exception as exc:
         logger.debug("Impossible de lire la transformation du scan %d : %s", scan_index, exc)
         return None
 

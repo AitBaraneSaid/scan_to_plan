@@ -291,7 +291,6 @@ def generate_pdf_report(
     try:
         import matplotlib
         matplotlib.use("Agg")
-        import matplotlib.pyplot as plt
         from matplotlib.backends.backend_pdf import PdfPages
     except ImportError as exc:
         raise ImportError(

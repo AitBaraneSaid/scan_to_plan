@@ -17,7 +17,6 @@ from scan2plan.detection.openings import Opening
 from scan2plan.utils.geometry import (
     angle_between_segments,
     line_intersection,
-    segment_length,
 )
 
 logger = logging.getLogger(__name__)
@@ -153,7 +152,7 @@ def detect_rooms(graph: WallGraph) -> list[list[int]]:
 
     try:
         cycles = nx.minimum_cycle_basis(G)
-    except Exception as exc:  # noqa: BLE001
+    except Exception as exc:
         logger.warning("detect_rooms : erreur lors de la détection de cycles : %s", exc)
         return []
 

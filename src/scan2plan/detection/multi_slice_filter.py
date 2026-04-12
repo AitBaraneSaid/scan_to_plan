@@ -16,6 +16,8 @@ from __future__ import annotations
 import logging
 from dataclasses import dataclass
 
+import numpy as np
+
 from scan2plan.detection.line_detection import DetectedSegment
 from scan2plan.utils.geometry import (
     angle_between_segments,
@@ -23,8 +25,6 @@ from scan2plan.utils.geometry import (
 )
 
 logger = logging.getLogger(__name__)
-
-import numpy as np
 
 
 @dataclass

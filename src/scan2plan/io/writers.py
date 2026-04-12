@@ -10,6 +10,7 @@ import numpy as np
 
 if TYPE_CHECKING:
     import ezdxf.document
+
     from scan2plan.detection.line_detection import DetectedSegment
     from scan2plan.detection.openings import Opening
 
