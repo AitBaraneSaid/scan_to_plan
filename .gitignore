@@ -28,6 +28,9 @@ htmlcov/
 output/
 *.dxf
 
+# Documentation générée (reconstruite par mkdocs build / gh-deploy)
+site/
+
 # IDE
 .vscode/
 .idea/
