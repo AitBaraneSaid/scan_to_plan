@@ -1,0 +1,33 @@
+# Profil "recent" — Logements neufs ou rénovés (post-1980)
+# Cloisons sèches fines, angles droits stricts, hauteur standard 2.50 m.
+
+preprocessing:
+  voxel_size: 0.005
+
+slicing:
+  heights:
+    - 2.00   # Slice haute : au-dessus des ouvertures typiques (h=2.10m dans neuf)
+    - 1.10   # Slice médiane : hauteur de coupe standard
+    - 0.20   # Slice basse : bas de portes
+  thickness: 0.08   # Tranches plus fines pour cloisons légères
+
+morphology:
+  kernel_size: 3    # Noyau petit : cloisons fines (7-10 cm)
+  close_iterations: 2
+  open_iterations: 1
+
+hough:
+  min_line_length: 40   # Segments courts acceptés (cloisons courtes)
+  max_line_gap: 10      # Gap réduit : murs continus dans le neuf
+
+segment_fusion:
+  angle_tolerance_deg: 2.0    # Angles droits stricts
+  perpendicular_dist: 0.02    # Alignement strict (murs bien alignés)
+  max_gap: 0.15
+
+regularization:
+  snap_tolerance_deg: 3.0     # Snapping strict (orthogonalité forte)
+
+topology:
+  intersection_distance: 0.04
+  min_segment_length: 0.08    # Cloisons courtes acceptées (0.08m min)

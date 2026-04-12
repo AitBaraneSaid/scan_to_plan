@@ -1,0 +1,34 @@
+# Profil "ancien" — Bâtiments anciens (pre-1948) ou haussmanniens
+# Murs épais (20-50 cm), angles potentiellement non droits (±5°),
+# hauteur sous plafond variable (2.70 m à 4.00 m).
+
+preprocessing:
+  voxel_size: 0.007   # Voxel légèrement plus grand : murs épais, moins de détails fins
+
+slicing:
+  heights:
+    - 2.30   # Slice haute : hauts plafonds → couper plus haut
+    - 1.20   # Slice médiane : légèrement décalée pour éviter les moulures
+    - 0.25   # Slice basse
+  thickness: 0.12   # Tranches plus épaisses pour capturer murs irréguliers
+
+morphology:
+  kernel_size: 7    # Noyau grand : murs épais avec bords irréguliers
+  close_iterations: 3
+  open_iterations: 1
+
+hough:
+  min_line_length: 60   # Segments longs favorisés (grands murs)
+  max_line_gap: 30      # Gap plus tolérant : murs avec enduits dégradés
+
+segment_fusion:
+  angle_tolerance_deg: 5.0    # Tolérance angulaire élevée (murs non orthogonaux)
+  perpendicular_dist: 0.05    # Distance perpendiculaire plus large (irrégularités)
+  max_gap: 0.30               # Gaps plus grands tolérés (niches, etc.)
+
+regularization:
+  snap_tolerance_deg: 8.0     # Snapping plus souple (angles non droits possibles)
+
+topology:
+  intersection_distance: 0.08
+  min_segment_length: 0.15    # Segments courts filtrés (bruit plus élevé)

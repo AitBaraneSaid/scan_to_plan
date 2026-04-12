@@ -1,0 +1,35 @@
+# Profil "bureau" — Locaux professionnels, bureaux, commerces
+# Grands espaces ouverts, cloisons vitrées fines, faux plafond à ~2.60 m,
+# murs porteurs épais, nombreuses cloisons légères.
+
+preprocessing:
+  voxel_size: 0.008   # Voxel plus grand : grandes surfaces, gain de performance
+
+slicing:
+  heights:
+    - 2.30   # Slice haute : au-dessus des cloisons vitrées (h≈2.10m)
+    - 1.10   # Slice médiane standard
+    - 0.25   # Slice basse
+  thickness: 0.10
+
+morphology:
+  kernel_size: 5
+  close_iterations: 2
+  open_iterations: 2   # Plus d'ouvertures : supprimer mobilier de bureau dense
+
+hough:
+  threshold: 40         # Seuil réduit : détecter les cloisons vitrées peu denses
+  min_line_length: 50
+  max_line_gap: 25      # Gap plus tolérant : cloisons vitrées avec montants
+
+segment_fusion:
+  angle_tolerance_deg: 3.0
+  perpendicular_dist: 0.03
+  max_gap: 0.40         # Gap large : cloisons vitrées avec ouvertures intégrées
+
+regularization:
+  snap_tolerance_deg: 5.0
+
+topology:
+  intersection_distance: 0.06
+  min_segment_length: 0.10
