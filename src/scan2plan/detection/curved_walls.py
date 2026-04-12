@@ -21,19 +21,19 @@ if TYPE_CHECKING:
 logger = logging.getLogger(__name__)
 
 # Limites métriques pour les poteaux (rayon)
-_MIN_PILLAR_RADIUS_M = 0.05   # 5 cm — poteau minimal
-_MAX_PILLAR_RADIUS_M = 0.40   # 40 cm — poteau maximal (au-delà = mur)
+_MIN_PILLAR_RADIUS_M = 0.05  # 5 cm — poteau minimal
+_MAX_PILLAR_RADIUS_M = 0.40  # 40 cm — poteau maximal (au-delà = mur)
 
 # Limites pour les murs courbes
-_MIN_ARC_RADIUS_M = 0.50      # 50 cm — rayon minimal d'un arc (en dessous = coin ?)
-_MAX_ARC_RADIUS_M = 50.0      # 50 m — rayon maximal (au-delà ≈ droite)
-_MIN_ARC_LENGTH_M = 0.30      # 30 cm — longueur minimale d'arc significatif
-_MIN_ARC_ANGLE_DEG = 10.0     # 10° — angle d'arc minimal
+_MIN_ARC_RADIUS_M = 0.50  # 50 cm — rayon minimal d'un arc (en dessous = coin ?)
+_MAX_ARC_RADIUS_M = 50.0  # 50 m — rayon maximal (au-delà ≈ droite)
+_MIN_ARC_LENGTH_M = 0.30  # 30 cm — longueur minimale d'arc significatif
+_MIN_ARC_ANGLE_DEG = 10.0  # 10° — angle d'arc minimal
 
 # Paramètres de détection des zones courbes
-_RESIDUE_WINDOW_PX = 30       # fenêtre locale pour calculer le résidu linéaire
-_HIGH_RESIDUE_RATIO = 0.15    # fraction du diamètre max de la fenêtre
-_MIN_CURVED_ZONE_PX = 20      # taille minimale d'une zone courbe en pixels
+_RESIDUE_WINDOW_PX = 30  # fenêtre locale pour calculer le résidu linéaire
+_HIGH_RESIDUE_RATIO = 0.15  # fraction du diamètre max de la fenêtre
+_MIN_CURVED_ZONE_PX = 20  # taille minimale d'une zone courbe en pixels
 
 
 @dataclass
@@ -161,17 +161,22 @@ def detect_pillars(
         conf = 1.0 - abs(r_m - mid_r) / (max_radius_m - min_radius_m)
         conf = max(0.1, min(1.0, conf))
 
-        pillars.append(DetectedPillar(
-            cx=cx_m, cy=cy_m, radius=r_m,
-            confidence=round(conf, 3),
-            source_slice=source_slice,
-        ))
+        pillars.append(
+            DetectedPillar(
+                cx=cx_m,
+                cy=cy_m,
+                radius=r_m,
+                confidence=round(conf, 3),
+                source_slice=source_slice,
+            )
+        )
 
     # Trier par confiance décroissante
     pillars.sort(key=lambda p: p.confidence, reverse=True)
     logger.info(
         "detect_pillars [%s] : %d poteau(x) détecté(s).",
-        source_slice, len(pillars),
+        source_slice,
+        len(pillars),
     )
     return pillars
 
@@ -229,7 +234,8 @@ def detect_curved_walls(
 
     logger.info(
         "detect_curved_walls [%s] : %d arc(s) détecté(s).",
-        source_slice, len(arcs),
+        source_slice,
+        len(arcs),
     )
     return arcs
 
@@ -237,6 +243,7 @@ def detect_curved_walls(
 # ---------------------------------------------------------------------------
 # Export DXF
 # ---------------------------------------------------------------------------
+
 
 def export_arcs_to_dxf(
     arcs: list[DetectedArc],
@@ -261,7 +268,7 @@ def export_arcs_to_dxf(
     arc_layer = (layer_config or {}).get("curved_walls", "MURS_COURBES")
     pillar_layer = (layer_config or {}).get("pillars", "POTEAUX")
 
-    _ensure_layer(doc, arc_layer, color=6)    # magenta
+    _ensure_layer(doc, arc_layer, color=6)  # magenta
     _ensure_layer(doc, pillar_layer, color=3)  # vert
 
     msp = doc.modelspace()
@@ -288,7 +295,9 @@ def export_arcs_to_dxf(
 
     logger.info(
         "export_arcs_to_dxf : %d arcs + %d poteaux → %d entités.",
-        len(arcs), len(pillars), n,
+        len(arcs),
+        len(pillars),
+        n,
     )
     return n
 
@@ -296,6 +305,7 @@ def export_arcs_to_dxf(
 # ---------------------------------------------------------------------------
 # Helpers privés
 # ---------------------------------------------------------------------------
+
 
 def _normalize_to_uint8(image: np.ndarray) -> np.ndarray:
     """Normalise une image en uint8 [0, 255].
@@ -355,6 +365,7 @@ def _extract_contour_points_metric(
     """
     try:
         import cv2
+
         kernel = np.ones((3, 3), np.uint8)
         eroded = cv2.erode(binary_image, kernel, iterations=1)
         contour_mask = (binary_image > 0) & (eroded == 0)
@@ -421,9 +432,7 @@ def _find_curved_zones(
             is_curved[i] = True
 
     zones = _group_curved_runs(is_curved, order)
-    logger.debug(
-        "_find_curved_zones : %d zones courbes sur %d points.", len(zones), n
-    )
+    logger.debug("_find_curved_zones : %d zones courbes sur %d points.", len(zones), n)
     return zones
 
 
@@ -554,8 +563,9 @@ def _fit_arc(
         cx, cy, r = _fit_circle_algebraic(pts)
         if cx is None:
             return None
-        return _make_arc(pts, cx, cy, r, source_slice,
-                         min_radius_m, max_radius_m, min_arc_length_m)
+        return _make_arc(
+            pts, cx, cy, r, source_slice, min_radius_m, max_radius_m, min_arc_length_m
+        )
 
     # Initialisation par méthode algébrique (Coope)
     cx0, cy0, r0 = _fit_circle_algebraic(pts)
@@ -584,8 +594,7 @@ def _fit_arc(
     except (ValueError, RuntimeError):
         cx, cy, r = cx0, cy0, r0
 
-    return _make_arc(pts, cx, cy, r, source_slice,
-                     min_radius_m, max_radius_m, min_arc_length_m)
+    return _make_arc(pts, cx, cy, r, source_slice, min_radius_m, max_radius_m, min_arc_length_m)
 
 
 def _fit_circle_algebraic(
@@ -606,7 +615,7 @@ def _fit_circle_algebraic(
 
     x, y = pts[:, 0], pts[:, 1]
     A = np.column_stack([2 * x, 2 * y, np.ones(len(pts))])
-    b = x ** 2 + y ** 2
+    b = x**2 + y**2
 
     try:
         result, _, rank, _ = np.linalg.lstsq(A, b, rcond=None)
@@ -617,7 +626,7 @@ def _fit_circle_algebraic(
         return None, None, None
 
     cx, cy = float(result[0]), float(result[1])
-    r = float(np.sqrt(max(0.0, result[2] + cx ** 2 + cy ** 2)))
+    r = float(np.sqrt(max(0.0, result[2] + cx**2 + cy**2)))
     return cx, cy, r
 
 

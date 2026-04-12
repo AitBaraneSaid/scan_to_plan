@@ -172,12 +172,14 @@ class ScanConfig:
             Copie du dictionnaire de configuration.
         """
         import copy
+
         return copy.deepcopy(self._data)
 
 
 # ------------------------------------------------------------------
 # Namespaces de configuration (accès typé sans dataclass externe)
 # ------------------------------------------------------------------
+
 
 class _PreprocessingConfig:
     def __init__(self, data: dict[str, Any]) -> None:
@@ -332,6 +334,7 @@ class _DxfConfig:
 # ------------------------------------------------------------------
 # Utilitaire
 # ------------------------------------------------------------------
+
 
 def _deep_merge(base: dict[str, Any], override: dict[str, Any]) -> dict[str, Any]:
     """Fusionne récursivement deux dictionnaires, override prend priorité.

@@ -466,14 +466,13 @@ class Scan2PlanPipeline:
         np.save(str(out), array)
         self.logger.debug("Intermédiaire sauvegardé : %s", out)
 
-    def _save_density_map_png(
-        self, dmap: DensityMapResult, output_path: Path, stem: str
-    ) -> None:
+    def _save_density_map_png(self, dmap: DensityMapResult, output_path: Path, stem: str) -> None:
         """Sauvegarde la density map en PNG (nécessite matplotlib)."""
         try:
             import matplotlib.pyplot as plt
 
             from scan2plan.utils.visualization import save_figure
+
             fig, ax = plt.subplots()
             ax.imshow(dmap.image, cmap="hot", origin="upper")
             ax.set_title(stem)
@@ -494,6 +493,7 @@ class Scan2PlanPipeline:
             import matplotlib.pyplot as plt
 
             from scan2plan.utils.visualization import plot_detected_segments, save_figure
+
             plot_detected_segments(dmap, segments, "Segments détectés")
             fig = plt.gcf()
             out = output_path.parent / f"{output_path.stem}_segments.png"

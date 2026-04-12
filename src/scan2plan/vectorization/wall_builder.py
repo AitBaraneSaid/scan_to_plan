@@ -14,12 +14,12 @@ if TYPE_CHECKING:
 logger = logging.getLogger(__name__)
 
 # Seuils métier
-_MIN_WALL_THICKNESS_M = 0.03   # 3 cm — en dessous = artefact
-_MAX_WALL_THICKNESS_M = 0.80   # 80 cm — au-dessus = mobilier
-_PROFILE_SAMPLES = 5            # nombre de profils perpendiculaires par mur
+_MIN_WALL_THICKNESS_M = 0.03  # 3 cm — en dessous = artefact
+_MAX_WALL_THICKNESS_M = 0.80  # 80 cm — au-dessus = mobilier
+_PROFILE_SAMPLES = 5  # nombre de profils perpendiculaires par mur
 _PROFILE_HALF_LENGTH_M = 0.50  # demi-longueur du profil perpendiculaire (m)
-_DENSITY_THRESHOLD = 0.1       # fraction du max pour considérer « haute densité »
-_MIN_ANGLE_DEG = 20.0          # angle min pour traiter deux murs comme distincts (L/T)
+_DENSITY_THRESHOLD = 0.1  # fraction du max pour considérer « haute densité »
+_MIN_ANGLE_DEG = 20.0  # angle min pour traiter deux murs comme distincts (L/T)
 
 
 def estimate_wall_thickness(
@@ -143,6 +143,7 @@ def build_double_line_walls(
 # Helpers privés — estimation épaisseur
 # ---------------------------------------------------------------------------
 
+
 def _measure_profile_thickness(
     cx: float,
     cy: float,
@@ -240,6 +241,7 @@ def _profile_width_m(profile: np.ndarray, offsets: np.ndarray) -> float:
 # Helpers privés — double ligne
 # ---------------------------------------------------------------------------
 
+
 def _offset_segment(
     seg: "DetectedSegment",
     half_width: float,
@@ -266,14 +268,18 @@ def _offset_segment(
     ox, oy = nx * half_width, ny * half_width
 
     line_pos = DS(
-        x1=seg.x1 + ox, y1=seg.y1 + oy,
-        x2=seg.x2 + ox, y2=seg.y2 + oy,
+        x1=seg.x1 + ox,
+        y1=seg.y1 + oy,
+        x2=seg.x2 + ox,
+        y2=seg.y2 + oy,
         source_slice=seg.source_slice,
         confidence=seg.confidence,
     )
     line_neg = DS(
-        x1=seg.x1 - ox, y1=seg.y1 - oy,
-        x2=seg.x2 - ox, y2=seg.y2 - oy,
+        x1=seg.x1 - ox,
+        y1=seg.y1 - oy,
+        x2=seg.x2 - ox,
+        y2=seg.y2 - oy,
         source_slice=seg.source_slice,
         confidence=seg.confidence,
     )
@@ -314,9 +320,7 @@ def _resolve_double_line_corners(
             if corner is None:
                 continue
 
-            pairs[i], pairs[j] = _cut_corner(
-                pairs[i], pairs[j], axes[i], axes[j], corner
-            )
+            pairs[i], pairs[j] = _cut_corner(pairs[i], pairs[j], axes[i], axes[j], corner)
 
 
 def _find_corner_type(
@@ -501,8 +505,10 @@ def _trim_line_at_intersection(
         if t > 1.0 + 0.1 or t < -0.5:
             return None
         return DS(
-            x1=ix, y1=iy,
-            x2=line.x2, y2=line.y2,
+            x1=ix,
+            y1=iy,
+            x2=line.x2,
+            y2=line.y2,
             source_slice=line.source_slice,
             confidence=line.confidence,
         )
@@ -511,8 +517,10 @@ def _trim_line_at_intersection(
         if t < -0.1 or t > 1.5:
             return None
         return DS(
-            x1=line.x1, y1=line.y1,
-            x2=ix, y2=iy,
+            x1=line.x1,
+            y1=line.y1,
+            x2=ix,
+            y2=iy,
             source_slice=line.source_slice,
             confidence=line.confidence,
         )

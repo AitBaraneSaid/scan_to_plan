@@ -73,12 +73,10 @@ def detect_dominant_orientations(
     # On triple l'histogramme pour que le lissage traite correctement les bords
     # 0°/180° comme une frontière cyclique, puis on ne garde que la copie centrale.
     smoothed_full = _gaussian_smooth(np.tile(hist, 3), sigma=2.0)
-    smoothed = smoothed_full[n_bins: 2 * n_bins]
+    smoothed = smoothed_full[n_bins : 2 * n_bins]
 
     # Détection des pics
-    dominant_angles = _find_significant_peaks(
-        smoothed, bin_size_deg, min_peak_ratio
-    )
+    dominant_angles = _find_significant_peaks(smoothed, bin_size_deg, min_peak_ratio)
 
     logger.info(
         "Orientations dominantes détectées : %s.",
@@ -90,6 +88,7 @@ def detect_dominant_orientations(
 # ---------------------------------------------------------------------------
 # Helpers privés
 # ---------------------------------------------------------------------------
+
 
 def _gaussian_smooth(histogram: np.ndarray, sigma: float) -> np.ndarray:
     """Lisse un histogramme angulaire circulaire avec un filtre gaussien.
@@ -168,7 +167,4 @@ def _find_significant_peaks(
     # Trier par hauteur décroissante
     sorted_bins = sorted(seen.items(), key=lambda kv: kv[1], reverse=True)
 
-    return [
-        float(np.deg2rad((idx + 0.5) * bin_size_deg))
-        for idx, _ in sorted_bins
-    ]
+    return [float(np.deg2rad((idx + 0.5) * bin_size_deg)) for idx, _ in sorted_bins]

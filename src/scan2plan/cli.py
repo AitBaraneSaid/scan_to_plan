@@ -121,6 +121,7 @@ def process(
     # Export du rapport QA en JSON si demandé
     if qa_report is not None and result.qa_report is not None:
         from scan2plan.qa.validator import generate_qa_report
+
         generate_qa_report(result.qa_report, qa_report)
         typer.echo(f"\nRapport QA écrit : {qa_report.with_suffix('.json')}")
 

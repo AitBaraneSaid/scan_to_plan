@@ -27,10 +27,10 @@ _LOW_CONFIDENCE_THRESHOLD = 0.4
 _DEFAULT_CELL_SIZE_M = 1.0
 
 # Poids des critères dans le score composite [0..1]
-_W_DENSITY = 0.35      # densité de points
-_W_SEGMENTS = 0.30     # présence de segments
-_W_TOPOLOGY = 0.20     # cohérence topologique locale
-_W_OPENINGS = 0.15     # ouvertures plausibles
+_W_DENSITY = 0.35  # densité de points
+_W_SEGMENTS = 0.30  # présence de segments
+_W_TOPOLOGY = 0.20  # cohérence topologique locale
+_W_OPENINGS = 0.15  # ouvertures plausibles
 
 
 @dataclass
@@ -99,8 +99,10 @@ class ZoneMap:
     def score_matrix(self) -> np.ndarray:
         """Retourne les scores comme matrice NumPy (n_rows, n_cols)."""
         return np.array(
-            [[self.zones[r][c].total_score for c in range(self.n_cols)]
-             for r in range(self.n_rows)],
+            [
+                [self.zones[r][c].total_score for c in range(self.n_cols)]
+                for r in range(self.n_rows)
+            ],
             dtype=np.float32,
         )
 
@@ -154,9 +156,7 @@ def compute_zone_scores(
             zy_min = y_min + r * cell_size_m
             zx_max = min(x_max, zx_min + cell_size_m)
             zy_max = min(y_max, zy_min + cell_size_m)
-            zone = ZoneScore(col=c, row=r,
-                             x_min=zx_min, y_min=zy_min,
-                             x_max=zx_max, y_max=zy_max)
+            zone = ZoneScore(col=c, row=r, x_min=zx_min, y_min=zy_min, x_max=zx_max, y_max=zy_max)
             _score_zone(zone, density_map, segments, openings, max_wall_length, res)
             row_zones.append(zone)
         grid.append(row_zones)
@@ -185,7 +185,10 @@ def compute_zone_scores(
 
     logger.info(
         "Zone scoring : %d×%d cellules, %d zones faibles, score global %.2f.",
-        n_cols, n_rows, len(low), global_score,
+        n_cols,
+        n_rows,
+        len(low),
+        global_score,
     )
     return zone_map
 
@@ -255,7 +258,8 @@ def export_low_confidence_zones_to_dxf(
 
     logger.info(
         "export_low_confidence_zones_to_dxf : %d zones → %d entités LINE.",
-        len(zone_map.low_confidence_zones), n,
+        len(zone_map.low_confidence_zones),
+        n,
     )
     return n
 
@@ -290,6 +294,7 @@ def generate_pdf_report(
     """
     try:
         import matplotlib
+
         matplotlib.use("Agg")
         from matplotlib.backends.backend_pdf import PdfPages
     except ImportError as exc:
@@ -312,6 +317,7 @@ def generate_pdf_report(
 # ---------------------------------------------------------------------------
 # Helpers privés — scoring
 # ---------------------------------------------------------------------------
+
 
 def _score_zone(
     zone: ZoneScore,
@@ -430,8 +436,7 @@ def _topology_score(
         return 1.0
 
     connected = sum(
-        1 for s in crossing
-        if _point_in_zone(s.x1, s.y1, zone) or _point_in_zone(s.x2, s.y2, zone)
+        1 for s in crossing if _point_in_zone(s.x1, s.y1, zone) or _point_in_zone(s.x2, s.y2, zone)
     )
     return float(connected) / float(len(crossing))
 
@@ -455,15 +460,13 @@ def _opening_score(
     Returns:
         Score [0, 1].
     """
-    wall_len = sum(
-        _clipped_length(s, zone) for s in segments
-        if _segment_intersects_zone(s, zone)
-    )
+    wall_len = sum(_clipped_length(s, zone) for s in segments if _segment_intersects_zone(s, zone))
     if wall_len < 0.10:
         return 1.0  # pas de mur dans la zone → neutre
 
     n_openings = sum(
-        1 for op in openings
+        1
+        for op in openings
         if _point_in_zone(
             (op.wall_segment.x1 + op.wall_segment.x2) / 2.0,
             (op.wall_segment.y1 + op.wall_segment.y2) / 2.0,
@@ -478,6 +481,7 @@ def _opening_score(
 # ---------------------------------------------------------------------------
 # Helpers privés — géométrie de zone
 # ---------------------------------------------------------------------------
+
 
 def _point_in_zone(x: float, y: float, zone: ZoneScore) -> bool:
     """True si le point (x, y) est dans la cellule (bornes incluses)."""
@@ -501,8 +505,10 @@ def _segment_intersects_zone(seg: "DetectedSegment", zone: ZoneScore) -> bool:
     seg_y_min = min(seg.y1, seg.y2)
     seg_y_max = max(seg.y1, seg.y2)
     return (
-        seg_x_max >= zone.x_min and seg_x_min <= zone.x_max
-        and seg_y_max >= zone.y_min and seg_y_min <= zone.y_max
+        seg_x_max >= zone.x_min
+        and seg_x_min <= zone.x_max
+        and seg_y_max >= zone.y_min
+        and seg_y_min <= zone.y_max
     )
 
 
@@ -554,6 +560,7 @@ def _clipped_length(seg: "DetectedSegment", zone: ZoneScore) -> float:
 # Helpers privés — visualisation
 # ---------------------------------------------------------------------------
 
+
 def _save_heatmap_png(
     matrix: np.ndarray,
     zone_map: ZoneMap,
@@ -567,6 +574,7 @@ def _save_heatmap_png(
         output_path: Chemin de sortie (extension .png assurée).
     """
     import matplotlib
+
     matplotlib.use("Agg")
     import matplotlib.pyplot as plt
 
@@ -577,7 +585,8 @@ def _save_heatmap_png(
     img = ax.imshow(
         matrix,
         origin="lower",
-        vmin=0.0, vmax=1.0,
+        vmin=0.0,
+        vmax=1.0,
         cmap="RdYlGn",
         interpolation="nearest",
         aspect="auto",
@@ -589,10 +598,17 @@ def _save_heatmap_png(
 
     # Marquer les zones faibles
     for zone in zone_map.low_confidence_zones:
-        ax.add_patch(plt.Rectangle(
-            (zone.col - 0.5, zone.row - 0.5), 1, 1,
-            fill=False, edgecolor="black", linewidth=1.5, linestyle="--",
-        ))
+        ax.add_patch(
+            plt.Rectangle(
+                (zone.col - 0.5, zone.row - 0.5),
+                1,
+                1,
+                fill=False,
+                edgecolor="black",
+                linewidth=1.5,
+                linestyle="--",
+            )
+        )
 
     fig.savefig(str(output_path), dpi=150, bbox_inches="tight")
     plt.close(fig)
@@ -624,18 +640,30 @@ def _write_heatmap_page(
     # Carte de chaleur
     ax = axes[0]
     img = ax.imshow(
-        matrix, origin="lower", vmin=0.0, vmax=1.0,
-        cmap="RdYlGn", interpolation="nearest", aspect="auto",
+        matrix,
+        origin="lower",
+        vmin=0.0,
+        vmax=1.0,
+        cmap="RdYlGn",
+        interpolation="nearest",
+        aspect="auto",
     )
     plt.colorbar(img, ax=ax, label="Confiance")
     ax.set_title("Confiance par zone")
     ax.set_xlabel("Col")
     ax.set_ylabel("Row")
     for zone in zone_map.low_confidence_zones:
-        ax.add_patch(plt.Rectangle(
-            (zone.col - 0.5, zone.row - 0.5), 1, 1,
-            fill=False, edgecolor="black", linewidth=1.2, linestyle="--",
-        ))
+        ax.add_patch(
+            plt.Rectangle(
+                (zone.col - 0.5, zone.row - 0.5),
+                1,
+                1,
+                fill=False,
+                edgecolor="black",
+                linewidth=1.2,
+                linestyle="--",
+            )
+        )
 
     # Plan avec segments et zones faibles
     ax2 = axes[1]
@@ -645,17 +673,21 @@ def _write_heatmap_page(
     ax2.set_ylabel("Y (m)")
 
     for seg in segments:
-        ax2.plot([seg.x1, seg.x2], [seg.y1, seg.y2],
-                 color="steelblue", linewidth=0.8)
+        ax2.plot([seg.x1, seg.x2], [seg.y1, seg.y2], color="steelblue", linewidth=0.8)
 
     for zone in zone_map.low_confidence_zones:
-        ax2.add_patch(plt.Rectangle(
-            (zone.x_min, zone.y_min),
-            zone.x_max - zone.x_min,
-            zone.y_max - zone.y_min,
-            fill=True, facecolor="red", alpha=0.2,
-            edgecolor="red", linewidth=0.8,
-        ))
+        ax2.add_patch(
+            plt.Rectangle(
+                (zone.x_min, zone.y_min),
+                zone.x_max - zone.x_min,
+                zone.y_max - zone.y_min,
+                fill=True,
+                facecolor="red",
+                alpha=0.2,
+                edgecolor="red",
+                linewidth=0.8,
+            )
+        )
 
     plt.tight_layout()
     pdf.savefig(fig)
@@ -690,7 +722,7 @@ def _write_metrics_page(
         ["Score global", f"{zone_map.global_score:.2f} / 1.00"],
         ["Cellules analysées", str(n_total)],
         ["Cellules à faible confiance", str(len(zone_map.low_confidence_zones))],
-        ["Taux zones faibles", f"{len(zone_map.low_confidence_zones)/max(1,n_total):.1%}"],
+        ["Taux zones faibles", f"{len(zone_map.low_confidence_zones) / max(1, n_total):.1%}"],
         ["Taille cellule", f"{zone_map.cell_size_m:.2f} m"],
         ["Segments de murs", str(len(segments))],
         ["Ouvertures", str(len(openings))],

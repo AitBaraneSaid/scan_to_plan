@@ -106,8 +106,12 @@ def detect_openings_along_wall(
     # Normaliser les profils pour le seuillage
     high_norm = _normalize_profile(high_profile)
     n = len(high_norm)
-    mid_norm = _resize_profile(_normalize_profile(mid_profile), n) if len(mid_profile) else np.zeros(n)
-    low_norm = _resize_profile(_normalize_profile(low_profile), n) if len(low_profile) else np.zeros(n)
+    mid_norm = (
+        _resize_profile(_normalize_profile(mid_profile), n) if len(mid_profile) else np.zeros(n)
+    )
+    low_norm = (
+        _resize_profile(_normalize_profile(low_profile), n) if len(low_profile) else np.zeros(n)
+    )
 
     # Masques de présence/absence à chaque position
     high_present = high_norm > _DENSITY_THRESHOLD_RATIO
@@ -122,8 +126,15 @@ def detect_openings_along_wall(
     door_gaps = _find_gaps(high_present & mid_absent & low_absent)
     for start_px, end_px in door_gaps:
         opening = _make_opening(
-            "door", wall_segment, start_px, end_px, n, resolution,
-            high_norm, min_door_width, max_door_width,
+            "door",
+            wall_segment,
+            start_px,
+            end_px,
+            n,
+            resolution,
+            high_norm,
+            min_door_width,
+            max_door_width,
         )
         if opening is not None:
             openings.append(opening)
@@ -132,8 +143,15 @@ def detect_openings_along_wall(
     window_gaps = _find_gaps(high_present & mid_absent & ~low_absent)
     for start_px, end_px in window_gaps:
         opening = _make_opening(
-            "window", wall_segment, start_px, end_px, n, resolution,
-            high_norm, min_window_width, max_window_width,
+            "window",
+            wall_segment,
+            start_px,
+            end_px,
+            n,
+            resolution,
+            high_norm,
+            min_window_width,
+            max_window_width,
         )
         if opening is not None:
             openings.append(opening)
@@ -142,7 +160,10 @@ def detect_openings_along_wall(
 
     logger.debug(
         "Mur (%.2f, %.2f)→(%.2f, %.2f) : %d ouvertures détectées.",
-        wall_segment.x1, wall_segment.y1, wall_segment.x2, wall_segment.y2,
+        wall_segment.x1,
+        wall_segment.y1,
+        wall_segment.x2,
+        wall_segment.y2,
         len(openings),
     )
     return openings
@@ -175,7 +196,9 @@ def detect_all_openings(
     all_openings: list[Opening] = []
     for seg in wall_segments:
         found = detect_openings_along_wall(
-            seg, density_maps, binary_images,
+            seg,
+            density_maps,
+            binary_images,
             min_door_width=min_door,
             max_door_width=max_door,
             min_window_width=min_win,
@@ -184,8 +207,7 @@ def detect_all_openings(
         all_openings.extend(found)
 
     logger.info(
-        "detect_all_openings : %d murs analysés → %d ouvertures "
-        "(%d portes, %d fenêtres).",
+        "detect_all_openings : %d murs analysés → %d ouvertures (%d portes, %d fenêtres).",
         len(wall_segments),
         len(all_openings),
         sum(1 for o in all_openings if o.type == "door"),
@@ -197,6 +219,7 @@ def detect_all_openings(
 # ---------------------------------------------------------------------------
 # Helpers privés
 # ---------------------------------------------------------------------------
+
 
 def _extract_wall_profile(
     wall_segment: DetectedSegment,
@@ -243,9 +266,12 @@ def _extract_wall_profile(
             bx = mx + k * dmap.resolution * px
             by = my + k * dmap.resolution * py
             col, row = metric_to_pixel(
-                bx, by,
-                dmap.x_min, dmap.y_min,
-                dmap.resolution, dmap.height,
+                bx,
+                by,
+                dmap.x_min,
+                dmap.y_min,
+                dmap.resolution,
+                dmap.height,
             )
             if 0 <= row < dmap.height and 0 <= col < dmap.width:
                 total += float(dmap.image[row, col])

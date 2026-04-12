@@ -154,12 +154,15 @@ def _merge_two(s1: DetectedSegment, s2: DetectedSegment) -> DetectedSegment:
     Returns:
         Segment fusionné avec la confiance max des deux.
     """
-    pts = np.array([
-        [s1.x1, s1.y1],
-        [s1.x2, s1.y2],
-        [s2.x1, s2.y1],
-        [s2.x2, s2.y2],
-    ], dtype=np.float64)
+    pts = np.array(
+        [
+            [s1.x1, s1.y1],
+            [s1.x2, s1.y2],
+            [s2.x1, s2.y1],
+            [s2.x2, s2.y2],
+        ],
+        dtype=np.float64,
+    )
 
     center = pts.mean(axis=0)
     _, _, vt = np.linalg.svd(pts - center)

@@ -61,7 +61,7 @@ if errorlevel 1 (
 echo [INFO] Installation de scan2plan et de ses dependances...
 echo        (open3d peut prendre quelques minutes au premier telechargement)
 echo.
-.venv\Scripts\python.exe -m pip install -e ".[dev]"
+.venv\Scripts\python.exe -m pip install -e ".[dev,docs]"
 if errorlevel 1 (
     echo.
     echo [ERREUR] L'installation a echoue. Verifiez votre connexion internet

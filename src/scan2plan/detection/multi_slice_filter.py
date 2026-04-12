@@ -216,6 +216,7 @@ def get_window_candidates(matches: list[SegmentMatch]) -> list[DetectedSegment]:
 # Helpers privés
 # ---------------------------------------------------------------------------
 
+
 def _find_best_match(
     reference: DetectedSegment,
     candidates: list[DetectedSegment],

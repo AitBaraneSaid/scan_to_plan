@@ -114,8 +114,9 @@ def align_parallel_segments(
 
     for dom_idx, group in groups.items():
         target_angle = dominant_angles[dom_idx]
-        aligned = _align_group(group, target_angle, alignment_tolerance,
-                               perpendicular_distance_segment_to_segment)
+        aligned = _align_group(
+            group, target_angle, alignment_tolerance, perpendicular_distance_segment_to_segment
+        )
         result.extend(aligned)
 
     logger.info(
@@ -129,6 +130,7 @@ def align_parallel_segments(
 # ---------------------------------------------------------------------------
 # Helpers privés
 # ---------------------------------------------------------------------------
+
 
 def _segment_angle_rad(seg: DetectedSegment) -> float:
     """Retourne l'angle du segment en radians dans [0, π).
@@ -367,7 +369,10 @@ def _merge_on_common_line(
     y2 = t_max * uy + d_mean * ny
 
     return DetectedSegment(
-        x1=x1, y1=y1, x2=x2, y2=y2,
+        x1=x1,
+        y1=y1,
+        x2=x2,
+        y2=y2,
         source_slice=s1.source_slice,
         confidence=max(s1.confidence, s2.confidence),
     )

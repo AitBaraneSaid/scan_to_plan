@@ -204,6 +204,7 @@ def clean_topology(
 # Helpers privés — résolution des intersections
 # ---------------------------------------------------------------------------
 
+
 def _resolve_intersections(
     segments: list[DetectedSegment],
     distance: float,
@@ -229,7 +230,10 @@ def _resolve_intersections(
 
     return [
         DetectedSegment(
-            x1=pt[0], y1=pt[1], x2=pt[2], y2=pt[3],
+            x1=pt[0],
+            y1=pt[1],
+            x2=pt[2],
+            y2=pt[3],
             source_slice=seg.source_slice,
             confidence=seg.confidence,
         )
@@ -299,6 +303,7 @@ def _snap_endpoints_to_point(
 # Helpers privés — gestion des nœuds
 # ---------------------------------------------------------------------------
 
+
 def _merge_nodes(
     raw: list[tuple[float, float]],
     threshold: float,
@@ -366,6 +371,7 @@ def _remerge_nodes(
 # ---------------------------------------------------------------------------
 # Helpers privés — nettoyage
 # ---------------------------------------------------------------------------
+
 
 def _deduplicate_edges(
     edges: list[tuple[int, int]],
@@ -483,6 +489,7 @@ def _compact_graph(
 # ---------------------------------------------------------------------------
 # Helper privé — conversion vers NetworkX
 # ---------------------------------------------------------------------------
+
 
 def _build_nx_graph(graph: WallGraph) -> "networkx.Graph":
     """Convertit un WallGraph en graphe NetworkX non orienté.

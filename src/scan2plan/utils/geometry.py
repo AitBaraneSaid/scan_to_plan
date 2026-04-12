@@ -203,6 +203,7 @@ def line_intersection(
 # Alias conservé pour compatibilité interne (segment_fusion.py)
 # ---------------------------------------------------------------------------
 
+
 def angle_between_segments_deg(
     seg1: tuple[float, float, float, float],
     seg2: tuple[float, float, float, float],

@@ -73,7 +73,7 @@ info "Mise à jour de pip..."
 info "Installation de scan2plan et de ses dépendances..."
 echo "     (open3d peut prendre quelques minutes au premier téléchargement)"
 echo
-"$VENV_PYTHON" -m pip install -e ".[dev]" || error "L'installation a échoué. Vérifiez votre connexion internet."
+"$VENV_PYTHON" -m pip install -e ".[dev,docs]" || error "L'installation a échoué. Vérifiez votre connexion internet."
 
 # ----------------------------------------------------------------
 # 5. Vérifier la CLI

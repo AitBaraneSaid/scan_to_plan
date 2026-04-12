@@ -24,12 +24,12 @@ _MVP_LAYER = "MURS_DETECTES"
 
 # Couleurs ACI (AutoCAD Color Index) par calque métier
 _LAYER_COLORS: dict[str, int] = {
-    "MURS": 7,          # blanc
-    "CLOISONS": 3,      # vert
-    "PORTES": 1,        # rouge
-    "FENETRES": 5,      # bleu
-    "INCERTAIN": 8,     # gris
-    _MVP_LAYER: 7,      # blanc (MVP)
+    "MURS": 7,  # blanc
+    "CLOISONS": 3,  # vert
+    "PORTES": 1,  # rouge
+    "FENETRES": 5,  # bleu
+    "INCERTAIN": 8,  # gris
+    _MVP_LAYER: 7,  # blanc (MVP)
 }
 
 
@@ -60,9 +60,7 @@ def write_segments_to_dxf(
     import ezdxf
 
     if segments.ndim != 2 or segments.shape[1] != 4:
-        raise ValueError(
-            f"segments doit être de forme (M, 4), reçu : {segments.shape}"
-        )
+        raise ValueError(f"segments doit être de forme (M, 4), reçu : {segments.shape}")
 
     doc = ezdxf.new(dxfversion=dxf_version)
     msp = doc.modelspace()
@@ -221,7 +219,7 @@ def export_openings_to_dxf(
         # Direction unitaire le long du mur et perpendiculaire
         dx = (seg.x2 - seg.x1) / length
         dy = (seg.y2 - seg.y1) / length
-        px, py = -dy, dx   # perpendiculaire, longueur = 1 m
+        px, py = -dy, dx  # perpendiculaire, longueur = 1 m
 
         # Demi-épaisseur du trait perpendiculaire = 10 cm
         half = 0.10
@@ -299,11 +297,11 @@ def export_dxf_v1(
     doc = ezdxf.new(dxfversion=version)
 
     # Calques métier avec couleurs et attributs
-    _add_layer(doc, layer_names["walls"], 7)       # blanc
+    _add_layer(doc, layer_names["walls"], 7)  # blanc
     _add_layer(doc, layer_names["partitions"], 4)  # cyan
-    _add_layer(doc, layer_names["uncertain"], 2)   # jaune
-    _add_layer(doc, layer_names["doors"], 1)       # rouge
-    _add_layer(doc, layer_names["windows"], 5)     # bleu
+    _add_layer(doc, layer_names["uncertain"], 2)  # jaune
+    _add_layer(doc, layer_names["doors"], 1)  # rouge
+    _add_layer(doc, layer_names["windows"], 5)  # bleu
 
     # Linetype tirets pour INCERTAIN
     _ensure_dashed_linetype(doc)

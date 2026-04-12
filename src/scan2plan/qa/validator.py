@@ -16,10 +16,10 @@ if TYPE_CHECKING:
 logger = logging.getLogger(__name__)
 
 # Seuils de validation
-_MICRO_SEGMENT_M = 0.10      # Segment < 10 cm = micro-segment parasite
-_LOW_CONFIDENCE = 0.50       # Confiance < 0.5 = zone à vérifier
-_MIN_ROOM_AREA_M2 = 0.25     # Pièce < 0.25 m² = probablement un artefact
-_MAX_ROOM_AREA_M2 = 500.0    # Pièce > 500 m² = probablement erronée
+_MICRO_SEGMENT_M = 0.10  # Segment < 10 cm = micro-segment parasite
+_LOW_CONFIDENCE = 0.50  # Confiance < 0.5 = zone à vérifier
+_MIN_ROOM_AREA_M2 = 0.25  # Pièce < 0.25 m² = probablement un artefact
+_MAX_ROOM_AREA_M2 = 500.0  # Pièce > 500 m² = probablement erronée
 
 # Pénalités de score
 _PENALTY_GAP = 10
@@ -90,6 +90,7 @@ def validate_plan(
 
     # ---- Pièces détectées -------------------------------------------------
     from scan2plan.vectorization.topology import detect_rooms
+
     rooms = detect_rooms(wall_graph)
     report.num_rooms_detected = len(rooms)
 
@@ -129,8 +130,7 @@ def generate_qa_report(report: QAReport, output_path: Path) -> None:
         "num_micro_segments": report.num_micro_segments,
         "avg_confidence": round(report.avg_confidence, 3),
         "low_confidence_zones": [
-            {"x": round(x, 3), "y": round(y, 3)}
-            for x, y in report.low_confidence_zones
+            {"x": round(x, 3), "y": round(y, 3)} for x, y in report.low_confidence_zones
         ],
         "warnings": report.warnings,
     }
@@ -143,6 +143,7 @@ def generate_qa_report(report: QAReport, output_path: Path) -> None:
 # ---------------------------------------------------------------------------
 # Helpers privés
 # ---------------------------------------------------------------------------
+
 
 def _compute_node_degrees(
     nodes: list[tuple[float, float]],
@@ -177,10 +178,7 @@ def _count_orphan_segments(
     Returns:
         Nombre de segments orphelins.
     """
-    return sum(
-        1 for i, j in edges
-        if i in degree_one_nodes and j in degree_one_nodes
-    )
+    return sum(1 for i, j in edges if i in degree_one_nodes and j in degree_one_nodes)
 
 
 def _add_warnings(report: QAReport) -> None:

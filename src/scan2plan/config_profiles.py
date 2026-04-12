@@ -27,12 +27,12 @@ _PROFILES_DIR = Path(__file__).parent.parent.parent / "config" / "profiles"
 AVAILABLE_PROFILES = ("recent", "ancien", "bureau")
 
 # Seuils d'auto-calibrage (en mètres)
-_THIN_WALL_THRESHOLD_M = 0.12    # < 12 cm → cloison fine (récent)
-_THICK_WALL_THRESHOLD_M = 0.20   # > 20 cm → mur épais (ancien)
+_THIN_WALL_THRESHOLD_M = 0.12  # < 12 cm → cloison fine (récent)
+_THICK_WALL_THRESHOLD_M = 0.20  # > 20 cm → mur épais (ancien)
 
 # Seuils de hauteur sous plafond
-_LOW_CEILING_M = 2.55     # < 2.55 m → logement récent standard
-_HIGH_CEILING_M = 2.85    # > 2.85 m → logement ancien (hauts plafonds) ou bureau
+_LOW_CEILING_M = 2.55  # < 2.55 m → logement récent standard
+_HIGH_CEILING_M = 2.85  # > 2.85 m → logement ancien (hauts plafonds) ou bureau
 
 # Seuil de densité pour les grands espaces ouverts (bureau)
 _OPEN_SPACE_RATIO = 0.30  # < 30 % de pixels occupés → espace ouvert
@@ -83,17 +83,15 @@ def load_profile(profile_name: str) -> dict[str, Any]:
     """
     if profile_name not in AVAILABLE_PROFILES:
         raise ValueError(
-            f"Profil inconnu : '{profile_name}'. "
-            f"Profils disponibles : {AVAILABLE_PROFILES}."
+            f"Profil inconnu : '{profile_name}'. Profils disponibles : {AVAILABLE_PROFILES}."
         )
 
     profile_path = _PROFILES_DIR / f"{profile_name}.yaml"
     if not profile_path.exists():
-        raise FileNotFoundError(
-            f"Fichier de profil introuvable : {profile_path}"
-        )
+        raise FileNotFoundError(f"Fichier de profil introuvable : {profile_path}")
 
     import yaml
+
     with profile_path.open(encoding="utf-8") as fh:
         data = yaml.safe_load(fh) or {}
 
@@ -173,7 +171,9 @@ def auto_calibrate(
 
     logger.info(
         "Auto-calibrage → profil '%s' (confiance %.0f%%). %s",
-        profile, confidence * 100, reasoning,
+        profile,
+        confidence * 100,
+        reasoning,
     )
     return result
 
@@ -207,6 +207,7 @@ def calibrate_slice_heights(ceiling_height_m: float) -> list[float]:
 # ---------------------------------------------------------------------------
 # Helpers privés
 # ---------------------------------------------------------------------------
+
 
 def _compute_open_space_ratio(image: np.ndarray) -> float:
     """Calcule la fraction de pixels non occupés dans la density map.
@@ -309,26 +310,18 @@ def _decide_profile(
     # Vote : épaisseur des murs
     if median_thickness_m > _THICK_WALL_THRESHOLD_M:
         votes["ancien"] += 2.0
-        reasons.append(
-            f"murs épais (épaisseur médiane {median_thickness_m * 100:.0f} cm)"
-        )
+        reasons.append(f"murs épais (épaisseur médiane {median_thickness_m * 100:.0f} cm)")
     elif median_thickness_m < _THIN_WALL_THRESHOLD_M:
         votes["recent"] += 1.5
-        reasons.append(
-            f"murs fins (épaisseur médiane {median_thickness_m * 100:.0f} cm)"
-        )
+        reasons.append(f"murs fins (épaisseur médiane {median_thickness_m * 100:.0f} cm)")
 
     # Vote : hauteur sous plafond
     if ceiling_height_m > _HIGH_CEILING_M:
         votes["ancien"] += 1.5
-        reasons.append(
-            f"hauts plafonds ({ceiling_height_m:.2f} m)"
-        )
+        reasons.append(f"hauts plafonds ({ceiling_height_m:.2f} m)")
     elif ceiling_height_m < _LOW_CEILING_M:
         votes["recent"] += 1.0
-        reasons.append(
-            f"hauteur standard ({ceiling_height_m:.2f} m)"
-        )
+        reasons.append(f"hauteur standard ({ceiling_height_m:.2f} m)")
 
     # Choisir le profil avec le plus de votes
     best_profile = max(votes, key=lambda k: votes[k])

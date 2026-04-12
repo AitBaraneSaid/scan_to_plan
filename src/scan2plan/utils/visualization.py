@@ -207,7 +207,11 @@ def plot_preprocessing_results(
     plt.tight_layout()
     logger.debug(
         "plot_preprocessing_results : brut=%d, down=%d, filtré=%d, sol=%.3f m, plafond=%.3f m.",
-        len(original), len(downsampled), len(filtered), floor_z, ceiling_z,
+        len(original),
+        len(downsampled),
+        len(filtered),
+        floor_z,
+        ceiling_z,
     )
     plt.show()
 
@@ -295,8 +299,12 @@ def plot_detected_segments(
 
     dmap = density_map_result
     h, w = dmap.height, dmap.width
-    extent = [dmap.x_min, dmap.x_min + w * dmap.resolution,
-              dmap.y_min, dmap.y_min + h * dmap.resolution]
+    extent = [
+        dmap.x_min,
+        dmap.x_min + w * dmap.resolution,
+        dmap.y_min,
+        dmap.y_min + h * dmap.resolution,
+    ]
 
     _, ax = plt.subplots(figsize=(10, 8))
     ax.imshow(dmap.image, origin="upper", extent=extent, cmap="gray", interpolation="nearest")
@@ -341,6 +349,7 @@ def save_figure(fig: "matplotlib.figure.Figure", path: Path) -> None:
 # ------------------------------------------------------------------
 # Utilitaire interne
 # ------------------------------------------------------------------
+
 
 def _subsample(points: np.ndarray, max_count: int) -> np.ndarray:
     """Sous-échantillonne aléatoirement un nuage si nécessaire.

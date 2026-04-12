@@ -12,7 +12,7 @@ logger = logging.getLogger(__name__)
 # Extensions reconnues
 _E57_EXTENSIONS = {".e57"}
 _LAS_EXTENSIONS = {".las", ".laz"}
-_NPY_EXTENSIONS = {".npy"}   # Tableaux NumPy — usage interne et tests
+_NPY_EXTENSIONS = {".npy"}  # Tableaux NumPy — usage interne et tests
 
 
 class UnsupportedFormatError(ValueError):
@@ -242,10 +242,7 @@ def _read_npy(path: Path) -> np.ndarray:
     """
     points = np.load(str(path)).astype(np.float64)
     if points.ndim != 2 or points.shape[1] != 3:
-        raise ValueError(
-            f"Le fichier .npy doit contenir un tableau (N, 3), "
-            f"reçu : {points.shape}"
-        )
+        raise ValueError(f"Le fichier .npy doit contenir un tableau (N, 3), reçu : {points.shape}")
     _log_point_cloud_info(points, path, "NPY")
     return points
 
@@ -262,12 +259,14 @@ def _log_point_cloud_info(points: np.ndarray, path: Path, fmt: str) -> None:
     x_min, y_min, z_min = points.min(axis=0)
     x_max, y_max, z_max = points.max(axis=0)
     logger.info(
-        "[%s] %s — %d points chargés. "
-        "BBox X=[%.3f, %.3f] Y=[%.3f, %.3f] Z=[%.3f, %.3f] (m)",
+        "[%s] %s — %d points chargés. BBox X=[%.3f, %.3f] Y=[%.3f, %.3f] Z=[%.3f, %.3f] (m)",
         fmt,
         path.name,
         n,
-        x_min, x_max,
-        y_min, y_max,
-        z_min, z_max,
+        x_min,
+        x_max,
+        y_min,
+        y_max,
+        z_min,
+        z_max,
     )

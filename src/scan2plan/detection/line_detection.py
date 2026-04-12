@@ -103,12 +103,15 @@ def detect_lines_hough(
     result: list[DetectedSegment] = []
 
     for px1, py1, px2, py2 in raw:
-        x1, y1 = pixel_to_metric(float(px1), float(py1), dmap.x_min, dmap.y_min,
-                                  dmap.resolution, dmap.height)
-        x2, y2 = pixel_to_metric(float(px2), float(py2), dmap.x_min, dmap.y_min,
-                                  dmap.resolution, dmap.height)
-        seg = DetectedSegment(x1=x1, y1=y1, x2=x2, y2=y2, source_slice=source_slice,
-                               confidence=0.0)
+        x1, y1 = pixel_to_metric(
+            float(px1), float(py1), dmap.x_min, dmap.y_min, dmap.resolution, dmap.height
+        )
+        x2, y2 = pixel_to_metric(
+            float(px2), float(py2), dmap.x_min, dmap.y_min, dmap.resolution, dmap.height
+        )
+        seg = DetectedSegment(
+            x1=x1, y1=y1, x2=x2, y2=y2, source_slice=source_slice, confidence=0.0
+        )
         seg.confidence = min(1.0, seg.length / _CONFIDENCE_REF_LENGTH)
         result.append(seg)
 
