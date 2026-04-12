@@ -564,7 +564,14 @@ def _fit_arc(
         if cx is None or cy is None or r is None:
             return None
         return _make_arc(
-            pts, float(cx), float(cy), float(r), source_slice, min_radius_m, max_radius_m, min_arc_length_m
+            pts,
+            float(cx),
+            float(cy),
+            float(r),
+            source_slice,
+            min_radius_m,
+            max_radius_m,
+            min_arc_length_m,
         )
 
     # Initialisation par méthode algébrique (Coope)
