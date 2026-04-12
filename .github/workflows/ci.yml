@@ -95,6 +95,8 @@ jobs:
           path: coverage.xml
 
       - name: Smoke test CLI
+        env:
+          PYTHONIOENCODING: utf-8
         run: scan2plan --help
 
   # --------------------------------------------------------------------------
