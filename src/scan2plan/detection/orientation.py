@@ -105,7 +105,7 @@ def _gaussian_smooth(histogram: np.ndarray, sigma: float) -> np.ndarray:
     """
     from scipy.ndimage import gaussian_filter1d
 
-    return gaussian_filter1d(histogram.astype(np.float64), sigma=sigma, mode="wrap")
+    return np.asarray(gaussian_filter1d(histogram.astype(np.float64), sigma=sigma, mode="wrap"))
 
 
 def _find_significant_peaks(

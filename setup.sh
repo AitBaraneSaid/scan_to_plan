@@ -87,14 +87,23 @@ else
 fi
 
 # ----------------------------------------------------------------
-# 6. Lancer les tests
+# 6. Formater et vérifier le code avec ruff
+# ----------------------------------------------------------------
+info "Formatage du code source (ruff format)..."
+"$VENV_PYTHON" -m ruff format src/ && ok "Code formaté." || warn "ruff format a échoué."
+
+info "Vérification du code (ruff check)..."
+"$VENV_PYTHON" -m ruff check src/ && ok "Aucun problème de linting." || warn "ruff check a signalé des problèmes."
+
+# ----------------------------------------------------------------
+# 7. Lancer les tests
 # ----------------------------------------------------------------
 info "Lancement de la suite de tests..."
 echo
 "$VENV_PYTHON" -m pytest tests/ -v --tb=short && ok "Tous les tests passent." || warn "Certains tests ont échoué. Vérifiez les logs ci-dessus."
 
 # ----------------------------------------------------------------
-# 7. Résumé
+# 8. Résumé
 # ----------------------------------------------------------------
 echo
 echo -e "${BOLD}============================================================${NC}"

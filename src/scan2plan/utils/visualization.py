@@ -12,6 +12,9 @@ import numpy as np
 if TYPE_CHECKING:
     import matplotlib.figure
 
+    from scan2plan.detection.line_detection import DetectedSegment
+    from scan2plan.slicing.density_map import DensityMapResult
+
 logger = logging.getLogger(__name__)
 
 _DEFAULT_SAMPLE_SIZE = 50_000
@@ -119,7 +122,7 @@ def plot_density_map(
     h, w = density_map.shape
     x_min, y_min = origin
     # extent : [left, right, bottom, top] en coordonnées métriques
-    extent = [x_min, x_min + w * resolution, y_min, y_min + h * resolution]
+    extent = (x_min, x_min + w * resolution, y_min, y_min + h * resolution)
     _, ax = plt.subplots(figsize=(10, 8))
     ax.imshow(
         density_map,
@@ -277,8 +280,8 @@ def plot_slice_pipeline(
 
 
 def plot_detected_segments(
-    density_map_result: "scan2plan.slicing.density_map.DensityMapResult",
-    segments: "list[scan2plan.detection.line_detection.DetectedSegment]",
+    density_map_result: "DensityMapResult",
+    segments: "list[DetectedSegment]",
     title: str,
 ) -> None:
     """Overlay les segments détectés sur la density map avec une couleur par confiance.
@@ -299,12 +302,12 @@ def plot_detected_segments(
 
     dmap = density_map_result
     h, w = dmap.height, dmap.width
-    extent = [
+    extent = (
         dmap.x_min,
         dmap.x_min + w * dmap.resolution,
         dmap.y_min,
         dmap.y_min + h * dmap.resolution,
-    ]
+    )
 
     _, ax = plt.subplots(figsize=(10, 8))
     ax.imshow(dmap.image, origin="upper", extent=extent, cmap="gray", interpolation="nearest")

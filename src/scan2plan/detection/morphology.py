@@ -46,7 +46,7 @@ def binarize_density_map(
         occupied,
         binary.size,
     )
-    return binary
+    return np.asarray(binary, dtype=np.uint8)
 
 
 def morphological_cleanup(
@@ -86,7 +86,7 @@ def morphological_cleanup(
         open_iterations,
         occupied,
     )
-    return cleaned
+    return np.asarray(cleaned, dtype=np.uint8)
 
 
 def _to_uint8(image: np.ndarray) -> np.ndarray:
@@ -101,4 +101,4 @@ def _to_uint8(image: np.ndarray) -> np.ndarray:
     max_val = image.max()
     if max_val == 0:
         return np.zeros_like(image, dtype=np.uint8)
-    return ((image.astype(np.float32) / max_val) * 255).astype(np.uint8)
+    return np.asarray(((image.astype(np.float32) / max_val) * 255), dtype=np.uint8)

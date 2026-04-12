@@ -84,7 +84,28 @@ if errorlevel 1 (
 )
 
 :: ----------------------------------------------------------------
-:: 6. Lancer les tests pour valider l'installation
+:: 6. Formater et verifier le code avec ruff
+::    Appel via python.exe -m ruff (contourne les problemes de PATH PowerShell)
+:: ----------------------------------------------------------------
+echo.
+echo [INFO] Formatage du code source (ruff format)...
+.venv\Scripts\python.exe -m ruff format src\
+if errorlevel 1 (
+    echo [AVERTISSEMENT] ruff format a echoue.
+) else (
+    echo [OK] Code formate.
+)
+
+echo [INFO] Verification du code (ruff check)...
+.venv\Scripts\python.exe -m ruff check src\
+if errorlevel 1 (
+    echo [AVERTISSEMENT] ruff check a signale des problemes. Voir les logs ci-dessus.
+) else (
+    echo [OK] Aucun probleme de linting.
+)
+
+:: ----------------------------------------------------------------
+:: 8. Lancer les tests pour valider l'installation
 :: ----------------------------------------------------------------
 echo [INFO] Lancement de la suite de tests...
 echo.
@@ -98,7 +119,7 @@ if errorlevel 1 (
 )
 
 :: ----------------------------------------------------------------
-:: 7. Resume
+:: 9. Resume
 :: ----------------------------------------------------------------
 echo.
 echo ============================================================

@@ -65,7 +65,7 @@ class ScanConfig:
                 f"Fichier de configuration par défaut introuvable : {_DEFAULT_PARAMS_PATH}"
             )
         with _DEFAULT_PARAMS_PATH.open(encoding="utf-8") as fh:
-            data = yaml.safe_load(fh)
+            data: dict[str, Any] = yaml.safe_load(fh) or {}
         logger.debug("Fichier de configuration par défaut chargé : %s", _DEFAULT_PARAMS_PATH)
         return data
 

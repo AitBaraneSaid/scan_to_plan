@@ -9,8 +9,12 @@ from __future__ import annotations
 
 import logging
 from dataclasses import dataclass, field
+from typing import TYPE_CHECKING
 
 import numpy as np
+
+if TYPE_CHECKING:
+    import networkx
 
 from scan2plan.detection.line_detection import DetectedSegment
 from scan2plan.detection.openings import Opening
@@ -151,7 +155,7 @@ def detect_rooms(graph: WallGraph) -> list[list[int]]:
         return []
 
     try:
-        cycles = nx.minimum_cycle_basis(G)
+        cycles: list[list[int]] = nx.minimum_cycle_basis(G)
     except Exception as exc:
         logger.warning("detect_rooms : erreur lors de la détection de cycles : %s", exc)
         return []

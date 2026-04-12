@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import logging
+from collections.abc import Callable
 
 import numpy as np
 
@@ -226,7 +227,7 @@ def _align_group(
     group: list[DetectedSegment],
     target_angle: float,
     tolerance: float,
-    dist_fn: "callable",
+    dist_fn: Callable[..., float],
 ) -> list[DetectedSegment]:
     """Aligne les segments d'un groupe de même direction dominante.
 
@@ -258,7 +259,7 @@ def _one_merge_pass(
     segs: list[DetectedSegment],
     target_angle: float,
     tolerance: float,
-    dist_fn: "callable",
+    dist_fn: Callable[..., float],
 ) -> tuple[list[DetectedSegment], bool]:
     """Effectue une passe de fusion : fusionne toutes les paires éligibles.
 
@@ -296,7 +297,7 @@ def _find_close_partner(
     i: int,
     used: list[bool],
     tolerance: float,
-    dist_fn: "callable",
+    dist_fn: Callable[..., float],
 ) -> int | None:
     """Cherche le premier segment j > i non utilisé à distance < tolerance de segs[i].
 

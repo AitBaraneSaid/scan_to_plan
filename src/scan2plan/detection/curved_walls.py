@@ -11,7 +11,7 @@ from __future__ import annotations
 import logging
 import math
 from dataclasses import dataclass
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 
 import numpy as np
 
@@ -561,22 +561,23 @@ def _fit_arc(
     except ImportError:
         # Fallback : utiliser seulement l'initialisation linéaire
         cx, cy, r = _fit_circle_algebraic(pts)
-        if cx is None:
+        if cx is None or cy is None or r is None:
             return None
         return _make_arc(
-            pts, cx, cy, r, source_slice, min_radius_m, max_radius_m, min_arc_length_m
+            pts, float(cx), float(cy), float(r), source_slice, min_radius_m, max_radius_m, min_arc_length_m
         )
 
     # Initialisation par méthode algébrique (Coope)
     cx0, cy0, r0 = _fit_circle_algebraic(pts)
-    if cx0 is None:
+    if cx0 is None or cy0 is None or r0 is None:
         return None
+    cx0, cy0, r0 = float(cx0), float(cy0), float(r0)
 
     # Raffinement par moindres carrés
     def residuals(params: np.ndarray) -> np.ndarray:
         cx, cy, r = params
         dist = np.hypot(pts[:, 0] - cx, pts[:, 1] - cy)
-        return dist - r
+        return np.asarray(dist - r)
 
     try:
         result = least_squares(

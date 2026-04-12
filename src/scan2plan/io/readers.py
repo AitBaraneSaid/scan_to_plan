@@ -4,8 +4,12 @@ from __future__ import annotations
 
 import logging
 from pathlib import Path
+from typing import TYPE_CHECKING
 
 import numpy as np
+
+if TYPE_CHECKING:
+    import pye57
 
 logger = logging.getLogger(__name__)
 
@@ -137,7 +141,7 @@ def _apply_transform(points: np.ndarray, matrix: np.ndarray) -> np.ndarray:
     ones = np.ones((len(points), 1), dtype=np.float64)
     homogeneous = np.hstack([points, ones])
     transformed = (matrix @ homogeneous.T).T
-    return transformed[:, :3]
+    return np.asarray(transformed[:, :3], dtype=np.float64)
 
 
 def read_las(path: Path) -> np.ndarray:
@@ -240,7 +244,7 @@ def _read_npy(path: Path) -> np.ndarray:
     Raises:
         ValueError: Si le tableau n'est pas de forme (N, 3).
     """
-    points = np.load(str(path)).astype(np.float64)
+    points: np.ndarray = np.load(str(path)).astype(np.float64)
     if points.ndim != 2 or points.shape[1] != 3:
         raise ValueError(f"Le fichier .npy doit contenir un tableau (N, 3), reçu : {points.shape}")
     _log_point_cloud_info(points, path, "NPY")
