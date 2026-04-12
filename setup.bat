@@ -43,17 +43,25 @@ if exist ".venv\Scripts\python.exe" (
 
 :: ----------------------------------------------------------------
 :: 3. Mettre a jour pip dans le venv
+::    Utiliser python.exe -m pip (et non pip.exe) pour eviter les
+::    erreurs si le pip embarque dans le venv est corrompu ou obsolete
 :: ----------------------------------------------------------------
 echo [INFO] Mise a jour de pip...
-.venv\Scripts\python.exe -m pip install --upgrade pip --quiet
+.venv\Scripts\python.exe -m pip install --upgrade pip
+if errorlevel 1 (
+    echo [ERREUR] Impossible de mettre a jour pip.
+    pause
+    exit /b 1
+)
 
 :: ----------------------------------------------------------------
 :: 4. Installer le package et toutes ses dependances
+::    Utiliser python.exe -m pip pour la meme raison qu'a l'etape 3
 :: ----------------------------------------------------------------
 echo [INFO] Installation de scan2plan et de ses dependances...
 echo        (open3d peut prendre quelques minutes au premier telechargement)
 echo.
-.venv\Scripts\pip.exe install -e ".[dev]"
+.venv\Scripts\python.exe -m pip install -e ".[dev]"
 if errorlevel 1 (
     echo.
     echo [ERREUR] L'installation a echoue. Verifiez votre connexion internet

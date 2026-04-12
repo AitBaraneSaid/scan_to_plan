@@ -29,6 +29,8 @@ dependencies = [
     "shapely>=2.0",
     "networkx>=3.2",
     "ezdxf>=1.2",
+    "open3d>=0.18",
+    "pye57>=0.4",
     "laspy[lazrs]>=2.5",
     "matplotlib>=3.8",
     "typer>=0.12",
@@ -36,11 +38,6 @@ dependencies = [
 ]
 
 [project.optional-dependencies]
-# Dépendances optionnelles (nécessitent Python 3.12 — pas supporté sur 3.13+)
-pointcloud = [
-    "open3d>=0.18",
-    "pye57>=0.4",
-]
 # Outillage développeur
 dev = [
     "pytest>=8.0",

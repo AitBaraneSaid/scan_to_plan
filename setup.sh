@@ -60,13 +60,12 @@ else
 fi
 
 VENV_PYTHON=".venv/bin/python"
-VENV_PIP=".venv/bin/pip"
 
 # ----------------------------------------------------------------
-# 3. Mettre à jour pip
+# 3. Mettre à jour pip (via python -m pip pour éviter les pip corrompus)
 # ----------------------------------------------------------------
 info "Mise à jour de pip..."
-"$VENV_PYTHON" -m pip install --upgrade pip --quiet
+"$VENV_PYTHON" -m pip install --upgrade pip
 
 # ----------------------------------------------------------------
 # 4. Installer le package et toutes ses dépendances
@@ -74,7 +73,7 @@ info "Mise à jour de pip..."
 info "Installation de scan2plan et de ses dépendances..."
 echo "     (open3d peut prendre quelques minutes au premier téléchargement)"
 echo
-"$VENV_PIP" install -e ".[dev]" || error "L'installation a échoué. Vérifiez votre connexion internet."
+"$VENV_PYTHON" -m pip install -e ".[dev]" || error "L'installation a échoué. Vérifiez votre connexion internet."
 
 # ----------------------------------------------------------------
 # 5. Vérifier la CLI
