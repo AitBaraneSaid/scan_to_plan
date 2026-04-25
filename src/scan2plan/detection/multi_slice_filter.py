@@ -94,17 +94,16 @@ def match_segments_across_slices(
         match = SegmentMatch(segment_high=seg_h, segment_mid=best_mid, segment_low=best_low)
         matches.append(match)
 
-    # Segments mid non appariés à un haut → mobilier (ou fenêtre basse)
+    # Segments mid non appariés à un haut → mobilier (absent en slice haute)
     for i, seg_m in enumerate(segs_mid):
         if used_mid[i]:
             continue
-        # Chercher si ce segment mid a un correspondant low
         best_low, idx_low = _find_best_match(seg_m, segs_low, angle_tol_rad, distance_tolerance)
         if idx_low is not None:
             used_low[idx_low] = True
         # Pas de segment high → mobilier quelle que soit la présence en low
         dummy = SegmentMatch(
-            segment_high=seg_m,  # on met le seg mid comme "référence" pour la classification
+            segment_high=seg_m,
             segment_mid=None,
             segment_low=best_low,
             classification="furniture",
@@ -161,14 +160,13 @@ def classify_segments(matches: list[SegmentMatch]) -> list[DetectedSegment]:
             n_furniture += 1
             continue
 
-        has_high = True  # segment_high est toujours présent ici
         has_mid = match.segment_mid is not None
         has_low = match.segment_low is not None
 
-        if has_high and has_low and not has_mid:
+        if has_low and not has_mid:
             match.classification = "window_candidate"
             n_window += 1
-        elif has_high and not has_low:
+        elif not has_low:
             match.classification = "door_candidate"
             n_door += 1
         else:
@@ -222,6 +220,7 @@ def _find_best_match(
     candidates: list[DetectedSegment],
     angle_tol_rad: float,
     distance_tol: float,
+    used: list[bool] | None = None,
 ) -> tuple[DetectedSegment | None, int | None]:
     """Cherche le meilleur segment correspondant parmi les candidats.
 
@@ -233,6 +232,8 @@ def _find_best_match(
         candidates: Liste de segments candidats.
         angle_tol_rad: Tolérance angulaire en radians.
         distance_tol: Tolérance de distance perpendiculaire en mètres.
+        used: Masque optionnel des candidats déjà appariés. Si fourni,
+            les candidats marqués ``True`` sont ignorés.
 
     Returns:
         ``(best_candidate, index)`` ou ``(None, None)`` si aucune correspondance.
@@ -242,6 +243,8 @@ def _find_best_match(
     best_dist = float("inf")
 
     for idx, cand in enumerate(candidates):
+        if used is not None and used[idx]:
+            continue
         angle = angle_between_segments(reference.as_tuple(), cand.as_tuple())
         if angle > angle_tol_rad:
             continue

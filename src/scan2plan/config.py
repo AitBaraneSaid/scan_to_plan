@@ -162,6 +162,10 @@ class ScanConfig:
         return _TopologyConfig(self._data["topology"])
 
     @property
+    def wall_pairing(self) -> "_WallPairingConfig":
+        return _WallPairingConfig(self._data.get("wall_pairing", {}))
+
+    @property
     def dxf(self) -> "_DxfConfig":
         return _DxfConfig(self._data["dxf"])
 
@@ -316,6 +320,51 @@ class _TopologyConfig:
     @property
     def min_segment_length(self) -> float:
         return float(self._d["min_segment_length"])
+
+
+class _WallPairingConfig:
+    def __init__(self, data: dict[str, Any]) -> None:
+        self._d = data
+
+    @property
+    def enabled(self) -> bool:
+        return bool(self._d.get("enabled", True))
+
+    @property
+    def angle_tolerance_deg(self) -> float:
+        return float(self._d.get("angle_tolerance_deg", 3.0))
+
+    @property
+    def min_distance(self) -> float:
+        return float(self._d.get("min_distance", 0.04))
+
+    @property
+    def max_distance(self) -> float:
+        return float(self._d.get("max_distance", 0.30))
+
+    @property
+    def min_overlap_abs(self) -> float:
+        return float(self._d.get("min_overlap_abs", 0.30))
+
+    @property
+    def min_overlap_ratio(self) -> float:
+        return float(self._d.get("min_overlap_ratio", 0.40))
+
+    @property
+    def corridor_margin(self) -> float:
+        return float(self._d.get("corridor_margin", 0.02))
+
+    @property
+    def typical_wall_thickness(self) -> float:
+        return float(self._d.get("typical_wall_thickness", 0.15))
+
+    @property
+    def min_segment_length(self) -> float:
+        return float(self._d.get("min_segment_length", 0.20))
+
+    @property
+    def corridor_intersection_threshold(self) -> float:
+        return float(self._d.get("corridor_intersection_threshold", 0.05))
 
 
 class _DxfConfig:

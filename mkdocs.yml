@@ -1,4 +1,4 @@
-site_name: Scan2Plan
+﻿site_name: Scan2Plan
 site_description: "Transformation d'un nuage de points 3D indoor en plan 2D DXF"
 site_author: AIT BARANE Said
 docs_dir: docs
@@ -55,6 +55,7 @@ nav:
   - Guide utilisateur:
       - Installation: guide/installation.md
       - Prise en main: guide/quickstart.md
+      - Exécutable Windows: guide/windows-exe.md
       - Configuration: guide/configuration.md
       - Formats supportés: guide/formats.md
       - Profils de paramètres: guide/profiles.md

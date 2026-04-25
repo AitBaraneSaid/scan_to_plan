@@ -13,15 +13,13 @@ from __future__ import annotations
 
 import logging
 from dataclasses import dataclass
-from pathlib import Path
 from typing import Any
 
 import numpy as np
 
-logger = logging.getLogger(__name__)
+from scan2plan.runtime_paths import get_config_dir
 
-# Répertoire des profils distribués avec le package
-_PROFILES_DIR = Path(__file__).parent.parent.parent / "config" / "profiles"
+logger = logging.getLogger(__name__)
 
 # Profils disponibles
 AVAILABLE_PROFILES = ("recent", "ancien", "bureau")
@@ -87,7 +85,7 @@ def load_profile(profile_name: str) -> dict[str, Any]:
             f"Profil inconnu : '{profile_name}'. Profils disponibles : {AVAILABLE_PROFILES}."
         )
 
-    profile_path = _PROFILES_DIR / f"{profile_name}.yaml"
+    profile_path = get_config_dir(__file__) / "profiles" / f"{profile_name}.yaml"
     if not profile_path.exists():
         raise FileNotFoundError(f"Fichier de profil introuvable : {profile_path}")
 

@@ -75,8 +75,14 @@ def morphological_cleanup(
     import cv2
 
     kernel = cv2.getStructuringElement(cv2.MORPH_RECT, (kernel_size, kernel_size))
-    closed = cv2.morphologyEx(binary_image, cv2.MORPH_CLOSE, kernel, iterations=close_iterations)
-    cleaned = cv2.morphologyEx(closed, cv2.MORPH_OPEN, kernel, iterations=open_iterations)
+    if close_iterations > 0:
+        closed = cv2.morphologyEx(binary_image, cv2.MORPH_CLOSE, kernel, iterations=close_iterations)
+    else:
+        closed = binary_image
+    if open_iterations > 0:
+        cleaned = cv2.morphologyEx(closed, cv2.MORPH_OPEN, kernel, iterations=open_iterations)
+    else:
+        cleaned = closed
 
     occupied = int((cleaned > 0).sum())
     logger.debug(

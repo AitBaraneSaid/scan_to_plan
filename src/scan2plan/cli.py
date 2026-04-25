@@ -9,6 +9,16 @@ from typing import Any, Optional
 
 import typer
 
+
+def _configure_console_io() -> None:
+    """Evite les crashes d'encodage sur les consoles Windows non UTF-8."""
+    for stream in (sys.stdout, sys.stderr):
+        if hasattr(stream, "reconfigure"):
+            stream.reconfigure(errors="replace")
+
+
+_configure_console_io()
+
 app = typer.Typer(
     name="scan2plan",
     help="Scan2Plan — Conversion automatique nuage de points 3D → plan 2D DXF.",
@@ -57,6 +67,28 @@ def process(
         "--slice-height",
         help="Surcharger la hauteur de coupe principale (mètres relatifs au sol).",
         min=0.1,
+    ),
+    floor_z: Optional[float] = typer.Option(
+        None,
+        "--floor-z",
+        help="Altitude absolue du sol (mètres). Si omis, détection automatique.",
+    ),
+    ceiling_z: Optional[float] = typer.Option(
+        None,
+        "--ceiling-z",
+        help="Altitude absolue du plafond (mètres). Si omis, détection automatique.",
+    ),
+    x_min: Optional[float] = typer.Option(
+        None, "--x-min", help="Limite X minimale pour recadrer le nuage (mètres)."
+    ),
+    x_max: Optional[float] = typer.Option(
+        None, "--x-max", help="Limite X maximale pour recadrer le nuage (mètres)."
+    ),
+    y_min: Optional[float] = typer.Option(
+        None, "--y-min", help="Limite Y minimale pour recadrer le nuage (mètres)."
+    ),
+    y_max: Optional[float] = typer.Option(
+        None, "--y-max", help="Limite Y maximale pour recadrer le nuage (mètres)."
     ),
     qa_report: Optional[Path] = typer.Option(
         None,
@@ -111,6 +143,9 @@ def process(
         output_path=output_file,
         save_intermediates=save_intermediates,
         debug_visualizations=debug,
+        floor_z_override=floor_z,
+        ceiling_z_override=ceiling_z,
+        xy_bounds=(x_min, x_max, y_min, y_max),
     )
 
     # Affichage du résumé et du rapport QA
@@ -206,7 +241,15 @@ def _configure_logging(verbose: bool) -> None:
     level = logging.DEBUG if verbose else logging.INFO
     logging.basicConfig(
         level=level,
-        format="%(asctime)s [%(levelname)s] %(name)s — %(message)s",
+        format="%(asctime)s [%(levelname)s] %(name)s - %(message)s",
         datefmt="%H:%M:%S",
         stream=sys.stderr,
     )
+
+def main() -> None:
+    """Lance l'application CLI Scan2Plan."""
+    app()
+
+
+if __name__ == "__main__":
+    main()

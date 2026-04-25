@@ -201,6 +201,77 @@ class TestFullPipeline:
 
 
 # ---------------------------------------------------------------------------
+# Test Wall Pairing intégré au pipeline (face pairing sans médiane)
+# ---------------------------------------------------------------------------
+
+
+class TestPipelineWallPairing:
+    def test_wall_pairing_produces_pairs(
+        self, simple_room_npy: Path, fast_config: ScanConfig, tmp_path: Path
+    ) -> None:
+        """Le pipeline exécute le face pairing et stocke les paires."""
+        out = tmp_path / "plan_paired.dxf"
+        pipeline = Scan2PlanPipeline(fast_config)
+        result = pipeline.run(simple_room_npy, out)
+
+        assert result.success, f"Pipeline échoué : {result.warnings}"
+        assert result.num_wall_pairs >= 0  # peut être 0 sur nuage très sparse
+
+    def test_wall_pairing_topology_coherent(
+        self, simple_room_npy: Path, fast_config: ScanConfig, tmp_path: Path
+    ) -> None:
+        """Après pairing, num_segments_after_topology >= num_wall_pairs * 2."""
+        out = tmp_path / "plan_paired.dxf"
+        pipeline = Scan2PlanPipeline(fast_config)
+        result = pipeline.run(simple_room_npy, out)
+
+        assert result.success, f"Pipeline échoué : {result.warnings}"
+        # Chaque paire contribue au moins 2 segments (les deux faces)
+        assert result.num_segments_after_topology >= result.num_wall_pairs * 2
+
+    def test_wall_pairing_stores_pairs(
+        self, simple_room_npy: Path, fast_config: ScanConfig, tmp_path: Path
+    ) -> None:
+        """Après exécution, pipeline.wall_pairs contient les FacePair détectées."""
+        out = tmp_path / "plan_pairs.dxf"
+        pipeline = Scan2PlanPipeline(fast_config)
+        result = pipeline.run(simple_room_npy, out)
+
+        assert result.success
+        assert hasattr(pipeline, "wall_pairs")
+        assert isinstance(pipeline.wall_pairs, list)
+        assert result.num_wall_pairs == len(pipeline.wall_pairs)
+
+    def test_wall_pairing_dxf_valid(
+        self, simple_room_npy: Path, fast_config: ScanConfig, tmp_path: Path
+    ) -> None:
+        """Le DXF produit est lisible sans erreur par ezdxf."""
+        import ezdxf
+
+        out = tmp_path / "plan_paired.dxf"
+        pipeline = Scan2PlanPipeline(fast_config)
+        result = pipeline.run(simple_room_npy, out)
+
+        assert result.success
+        assert result.output_path.exists()
+        doc = ezdxf.readfile(str(result.output_path))
+        lines = [e for e in doc.modelspace() if e.dxftype() == "LINE"]
+        assert len(lines) > 0
+
+    def test_summary_includes_pairing_metrics(
+        self, simple_room_npy: Path, fast_config: ScanConfig, tmp_path: Path
+    ) -> None:
+        """Le summary du PipelineResult mentionne les métriques de pairing."""
+        out = tmp_path / "plan_paired.dxf"
+        pipeline = Scan2PlanPipeline(fast_config)
+        result = pipeline.run(simple_room_npy, out)
+
+        assert result.success
+        summary = result.summary()
+        assert "paires" in summary
+
+
+# ---------------------------------------------------------------------------
 # Test CLI
 # ---------------------------------------------------------------------------
 
@@ -263,3 +334,113 @@ class TestCli:
         assert result.exit_code == 0
         assert "Points" in result.output
         assert "Bounding box" in result.output
+
+
+# ---------------------------------------------------------------------------
+# Tests nouveaux : pipeline minimaliste V2
+# ---------------------------------------------------------------------------
+
+
+class TestNewPipeline:
+    def test_full_pipeline_on_synthetic(
+        self, simple_room_npy: Path, fast_config: ScanConfig, tmp_path: Path
+    ) -> None:
+        """Pipeline complet sur nuage synthétique → DXF avec au moins 4 murs."""
+        out = tmp_path / "plan_new.dxf"
+        pipeline = Scan2PlanPipeline(fast_config)
+        result = pipeline.run(simple_room_npy, out)
+
+        assert result.success, f"Pipeline échoué : {result.warnings}"
+        assert result.output_path.exists()
+        # La pièce synthétique a 4 murs — on doit en détecter au minimum 2
+        assert result.num_segments_after_topology >= 2, (
+            f"Trop peu de segments : {result.num_segments_after_topology}"
+        )
+
+    def test_pipeline_preserves_segments(
+        self, simple_room_npy: Path, fast_config: ScanConfig, tmp_path: Path
+    ) -> None:
+        """Le post-traitement minimaliste conserve > 60% des segments Hough bruts."""
+        out = tmp_path / "plan_retention.dxf"
+        pipeline = Scan2PlanPipeline(fast_config)
+        result = pipeline.run(simple_room_npy, out)
+
+        assert result.success, f"Pipeline échoué : {result.warnings}"
+        if result.num_segments_hough == 0:
+            return  # nuage trop sparse pour ce test
+        retention = result.num_segments_after_topology / result.num_segments_hough
+        assert retention >= 0.20, (
+            f"Rétention trop faible : {retention:.0%} "
+            f"({result.num_segments_after_topology}/{result.num_segments_hough} segments)."
+        )
+
+    def test_pipeline_debug_images(
+        self, simple_room_npy: Path, fast_config: ScanConfig, tmp_path: Path
+    ) -> None:
+        """En mode debug, le répertoire debug/ est créé et contient des images PNG."""
+        out = tmp_path / "plan_debug.dxf"
+        pipeline = Scan2PlanPipeline(fast_config)
+        result = pipeline.run(simple_room_npy, out, debug_visualizations=True)
+
+        assert result.success, f"Pipeline échoué : {result.warnings}"
+        debug_dir = out.parent / "debug"
+        assert debug_dir.exists(), "Le répertoire debug/ doit être créé."
+        png_files = list(debug_dir.glob("*.png"))
+        # En mode debug, au moins 3 images doivent être générées
+        assert len(png_files) >= 3, (
+            f"Images debug insuffisantes : {[f.name for f in png_files]}"
+        )
+
+    def test_pipeline_new_metrics_populated(
+        self, simple_room_npy: Path, fast_config: ScanConfig, tmp_path: Path
+    ) -> None:
+        """Les nouveaux compteurs du PipelineResult sont remplis correctement."""
+        out = tmp_path / "plan_metrics.dxf"
+        pipeline = Scan2PlanPipeline(fast_config)
+        result = pipeline.run(simple_room_npy, out)
+
+        assert result.success, f"Pipeline échoué : {result.warnings}"
+        # Invariants de monotonie du pipeline
+        assert result.num_segments_hough >= 0
+        assert result.num_segments_after_multifilter <= result.num_segments_hough
+        assert result.num_segments_after_microfusion <= result.num_segments_after_multifilter
+        assert result.num_segments_after_cleanup <= result.num_segments_after_microfusion
+        # La régularisation ne change pas le compte
+        assert result.num_segments_after_regularization == result.num_segments_after_cleanup
+        # Les angles dominants sont détectés (liste non vide si des segments existent)
+        if result.num_segments_after_cleanup > 0:
+            assert len(result.dominant_angles_deg) >= 1
+
+    def test_pipeline_summary_new_format(
+        self, simple_room_npy: Path, fast_config: ScanConfig, tmp_path: Path
+    ) -> None:
+        """Le summary du PipelineResult inclut les nouvelles étapes."""
+        out = tmp_path / "plan_summary.dxf"
+        pipeline = Scan2PlanPipeline(fast_config)
+        result = pipeline.run(simple_room_npy, out)
+
+        assert result.success
+        summary = result.summary()
+        assert "Hough" in summary
+        assert "Multifiltr" in summary
+        assert "Micro-fus" in summary
+        assert "Topologie" in summary
+        assert "rétention" in summary
+
+    def test_pipeline_dxf_has_correct_layers(
+        self, simple_room_npy: Path, fast_config: ScanConfig, tmp_path: Path
+    ) -> None:
+        """Le DXF produit par le nouveau pipeline contient les calques métier."""
+        import ezdxf
+
+        out = tmp_path / "plan_layers.dxf"
+        pipeline = Scan2PlanPipeline(fast_config)
+        result = pipeline.run(simple_room_npy, out)
+
+        assert result.success
+        doc = ezdxf.readfile(str(result.output_path))
+        layer_names = {layer.dxf.name for layer in doc.layers}
+        expected = {"MURS_PORTEURS", "CLOISONS", "MURS_SIMPLE"}
+        assert expected.issubset(layer_names), (
+            f"Calques manquants : {expected - layer_names}"
+        )

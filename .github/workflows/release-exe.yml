@@ -1,0 +1,68 @@
+﻿name: Release Windows EXE
+
+on:
+  release:
+    types: [published]
+
+permissions:
+  contents: write
+
+concurrency:
+  group: release-exe-${{ github.event.release.tag_name }}
+  cancel-in-progress: false
+
+jobs:
+  build-windows-exe:
+    name: Build Windows executable
+    runs-on: windows-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python 3.12
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: "pip"
+
+      - name: Install dependencies
+        shell: powershell
+        run: |
+          python -m pip install --upgrade pip
+          pip install -e ".[dev]"
+          pip install pyinstaller
+
+      - name: Build executable
+        shell: powershell
+        run: |
+          python -m PyInstaller --noconfirm --clean scan2plan.spec
+
+      - name: Smoke test executable
+        shell: powershell
+        run: |
+          ./dist/scan2plan.exe --help
+          ./dist/scan2plan.exe info ./tests/fixtures/simple_room.npy
+
+      - name: Prepare release assets
+        shell: powershell
+        run: |
+          Compress-Archive -Path ./dist/scan2plan.exe -DestinationPath ./dist/scan2plan-windows-x64.zip -Force
+          $hash = (Get-FileHash ./dist/scan2plan-windows-x64.zip -Algorithm SHA256).Hash.ToLower()
+          Set-Content -Path ./dist/scan2plan-windows-x64.sha256 -Value "$hash  scan2plan-windows-x64.zip"
+
+      - name: Upload workflow artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: scan2plan-windows-x64
+          path: |
+            dist/scan2plan.exe
+            dist/scan2plan-windows-x64.zip
+            dist/scan2plan-windows-x64.sha256
+
+      - name: Attach assets to GitHub release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: |
+            dist/scan2plan-windows-x64.zip
+            dist/scan2plan-windows-x64.sha256

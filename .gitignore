@@ -27,6 +27,8 @@ htmlcov/
 # Sorties générées
 output/
 *.dxf
+data/
+debug_test_run/
 
 # Documentation générée (reconstruite par mkdocs build / gh-deploy)
 site/

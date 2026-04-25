@@ -258,6 +258,7 @@ def export_dxf_v1(
     openings: "list[Opening]",
     output_path: Path,
     config: "Any | None" = None,
+    wall_pairs: "list[Any] | None" = None,
 ) -> Path:
     """Exporte le plan V1 : murs structurés par calques métier + ouvertures.
 
@@ -268,11 +269,17 @@ def export_dxf_v1(
     - PORTES (rouge ACI 1) : ouvertures de type porte.
     - FENETRES (bleu ACI 5) : ouvertures de type fenêtre.
 
+    Si ``wall_pairs`` est fourni, les murs appariés sont exportés en double ligne
+    (face_a + face_b) pour représenter l'épaisseur réelle du mur. Les segments
+    non appariés sont exportés en ligne simple comme avant.
+
     Args:
         wall_graph: WallGraph avec les segments régularisés et nettoyés.
         openings: Liste d'ouvertures détectées.
         output_path: Chemin du fichier DXF de sortie.
         config: ScanConfig optionnel pour les noms de calques et la version DXF.
+        wall_pairs: Liste de WallPair optionnelle. Si fournie, active l'export
+            en double ligne pour les murs appariés.
 
     Returns:
         Chemin du fichier DXF créé.
@@ -287,7 +294,7 @@ def export_dxf_v1(
         "windows": "FENETRES",
         "uncertain": "INCERTAIN",
     }
-    confidence_threshold = 0.50
+    confidence_threshold = 0.20
 
     if config is not None:
         version = getattr(config.dxf, "version", version)
@@ -313,13 +320,18 @@ def export_dxf_v1(
     msp = doc.modelspace()
 
     # ---- Segments de murs -------------------------------------------------
-    for seg in wall_graph.segments:
-        layer = _classify_segment_layer(seg, layer_names, confidence_threshold)
-        msp.add_line(
-            start=(seg.x1, seg.y1, 0.0),
-            end=(seg.x2, seg.y2, 0.0),
-            dxfattribs={"layer": layer},
-        )
+    if wall_pairs:
+        _export_double_line_walls(msp, wall_graph, wall_pairs, layer_names, confidence_threshold)
+        n_lines = len(wall_graph.segments) + len(wall_pairs)  # approximation pour le log
+    else:
+        for seg in wall_graph.segments:
+            layer = _classify_segment_layer(seg, layer_names, confidence_threshold)
+            msp.add_line(
+                start=(seg.x1, seg.y1, 0.0),
+                end=(seg.x2, seg.y2, 0.0),
+                dxfattribs={"layer": layer},
+            )
+        n_lines = len(wall_graph.segments)
 
     # ---- Ouvertures -------------------------------------------------------
     export_openings_to_dxf(openings, doc, layer_names)
@@ -329,13 +341,104 @@ def export_dxf_v1(
     doc.saveas(str(output_path))
 
     logger.info(
-        "DXF V1 exporté : %s — %d segments, %d ouvertures (version %s).",
+        "DXF V1 exporté : %s — %d lignes, %d ouvertures (version %s).",
         output_path,
-        len(wall_graph.segments),
+        n_lines,
         len(openings),
         version,
     )
     return output_path
+
+
+def _export_double_line_walls(
+    msp: "Any",
+    wall_graph: "Any",
+    wall_pairs: "list[Any]",
+    layer_names: dict[str, str],
+    confidence_threshold: float,
+) -> None:
+    """Exporte les murs en double ligne à partir des segments topologisés.
+
+    Stratégie : pour chaque segment du wall_graph, chercher la WallPair dont
+    le médian correspond (par proximité de centre). Si trouvée, reconstruire
+    les deux faces parallèles en décalant le segment topologisé de ±thickness/2
+    dans la direction perpendiculaire. Si non trouvée, exporter en ligne simple.
+
+    Cette approche garantit que les faces héritent des connexions topologiques
+    (coins résolus, prolongements) plutôt que de flotter librement.
+
+    Args:
+        msp: Modelspace ezdxf.
+        wall_graph: WallGraph contenant les segments régularisés et topologisés.
+        wall_pairs: Liste de WallPair avec épaisseur et médian de référence.
+        layer_names: Mapping des noms de calques.
+        confidence_threshold: Seuil de confiance pour INCERTAIN vs MURS.
+    """
+    import numpy as np
+
+    _MATCH_TOL = 0.30  # 30 cm : tolérance de correspondance médian ↔ wall_graph
+
+    wg_segs = wall_graph.segments
+    if not wg_segs:
+        return
+
+    # Centres des médianes de paires pour le matching
+    if wall_pairs:
+        pair_cx = np.array([(p.median_segment.x1 + p.median_segment.x2) / 2.0 for p in wall_pairs])
+        pair_cy = np.array([(p.median_segment.y1 + p.median_segment.y2) / 2.0 for p in wall_pairs])
+    else:
+        pair_cx = np.array([])
+        pair_cy = np.array([])
+
+    for seg in wg_segs:
+        layer = _classify_segment_layer(seg, layer_names, confidence_threshold)
+
+        # Chercher la paire correspondante
+        best_pair = None
+        if len(wall_pairs) > 0:
+            seg_cx = (seg.x1 + seg.x2) / 2.0
+            seg_cy = (seg.y1 + seg.y2) / 2.0
+            dists = np.hypot(pair_cx - seg_cx, pair_cy - seg_cy)
+            idx = int(np.argmin(dists))
+            if dists[idx] < _MATCH_TOL:
+                best_pair = wall_pairs[idx]
+
+        if best_pair is not None:
+            # Reconstruire les deux faces à partir du segment topologisé
+            # Décalage perpendiculaire = ±thickness/2
+            seg_len = float(np.hypot(seg.x2 - seg.x1, seg.y2 - seg.y1))
+            if seg_len < 1e-6:
+                msp.add_line(
+                    start=(seg.x1, seg.y1, 0.0),
+                    end=(seg.x2, seg.y2, 0.0),
+                    dxfattribs={"layer": layer},
+                )
+                continue
+            dx = (seg.x2 - seg.x1) / seg_len
+            dy = (seg.y2 - seg.y1) / seg_len
+            # Vecteur perpendiculaire (rotation +90°)
+            px, py = -dy, dx
+            half = best_pair.thickness / 2.0
+
+            # Face 1
+            msp.add_line(
+                start=(seg.x1 + px * half, seg.y1 + py * half, 0.0),
+                end=(seg.x2 + px * half, seg.y2 + py * half, 0.0),
+                dxfattribs={"layer": layer},
+            )
+            # Face 2
+            msp.add_line(
+                start=(seg.x1 - px * half, seg.y1 - py * half, 0.0),
+                end=(seg.x2 - px * half, seg.y2 - py * half, 0.0),
+                dxfattribs={"layer": layer},
+            )
+        else:
+            # Segment non apparié : ligne simple
+            msp.add_line(
+                start=(seg.x1, seg.y1, 0.0),
+                end=(seg.x2, seg.y2, 0.0),
+                dxfattribs={"layer": layer},
+            )
 
 
 def _classify_segment_layer(

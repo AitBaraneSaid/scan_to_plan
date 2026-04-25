@@ -115,13 +115,15 @@ def align_parallel_segments(
 
     for dom_idx, group in groups.items():
         target_angle = dominant_angles[dom_idx]
+        # Micro-alignement uniquement : corrige les décalages < alignment_tolerance
+        # Les doubles lignes (deux faces d'un mur) sont volontairement conservées
         aligned = _align_group(
             group, target_angle, alignment_tolerance, perpendicular_distance_segment_to_segment
         )
         result.extend(aligned)
 
     logger.info(
-        "align_parallel_segments : %d segments → %d après alignement.",
+        "align_parallel_segments : %d segments -> %d apres alignement.",
         len(segments),
         len(result),
     )
@@ -228,6 +230,7 @@ def _align_group(
     target_angle: float,
     tolerance: float,
     dist_fn: Callable[..., float],
+    require_overlap: bool = False,
 ) -> list[DetectedSegment]:
     """Aligne les segments d'un groupe de même direction dominante.
 
@@ -239,6 +242,7 @@ def _align_group(
         target_angle: Angle dominant du groupe (radians).
         tolerance: Seuil de distance perpendiculaire (mètres).
         dist_fn: Fonction ``perpendicular_distance_segment_to_segment``.
+        require_overlap: Transmis à ``_one_merge_pass``.
 
     Returns:
         Groupe aligné (même nombre de segments ou moins si fusion).
@@ -250,7 +254,8 @@ def _align_group(
     merged = True
 
     while merged and len(current) > 1:
-        current, merged = _one_merge_pass(current, target_angle, tolerance, dist_fn)
+        current, merged = _one_merge_pass(current, target_angle, tolerance, dist_fn,
+                                          require_overlap=require_overlap)
 
     return current
 
@@ -260,6 +265,7 @@ def _one_merge_pass(
     target_angle: float,
     tolerance: float,
     dist_fn: Callable[..., float],
+    require_overlap: bool = False,
 ) -> tuple[list[DetectedSegment], bool]:
     """Effectue une passe de fusion : fusionne toutes les paires éligibles.
 
@@ -268,6 +274,7 @@ def _one_merge_pass(
         target_angle: Direction de la droite porteuse (radians).
         tolerance: Seuil de distance perpendiculaire (mètres).
         dist_fn: Fonction de distance perpendiculaire.
+        require_overlap: Transmis à ``_find_close_partner``.
 
     Returns:
         ``(nouvelle_liste, au_moins_une_fusion_effectuée)``.
@@ -279,7 +286,8 @@ def _one_merge_pass(
     for i in range(len(segs)):
         if used[i]:
             continue
-        partner = _find_close_partner(segs, i, used, tolerance, dist_fn)
+        partner = _find_close_partner(segs, i, used, tolerance, dist_fn,
+                                      require_overlap=require_overlap)
         if partner is not None:
             result.append(_merge_on_common_line(segs[i], segs[partner], target_angle))
             used[i] = True
@@ -298,6 +306,7 @@ def _find_close_partner(
     used: list[bool],
     tolerance: float,
     dist_fn: Callable[..., float],
+    require_overlap: bool = False,
 ) -> int | None:
     """Cherche le premier segment j > i non utilisé à distance < tolerance de segs[i].
 
@@ -307,15 +316,27 @@ def _find_close_partner(
         used: Masque des segments déjà appariés.
         tolerance: Seuil de distance (mètres).
         dist_fn: Fonction de distance perpendiculaire.
+        require_overlap: Si True, exige un chevauchement longitudinal > 30%
+            de la longueur minimale des deux segments (évite de fusionner
+            deux murs parallèles dans des pièces différentes).
 
     Returns:
         Indice du partenaire trouvé, ou ``None``.
     """
+    from scan2plan.utils.geometry import segments_overlap_or_gap
+
     for j in range(i + 1, len(segs)):
         if used[j]:
             continue
-        if dist_fn(segs[i].as_tuple(), segs[j].as_tuple()) < tolerance:
-            return j
+        if dist_fn(segs[i].as_tuple(), segs[j].as_tuple()) >= tolerance:
+            continue
+        if require_overlap:
+            gap = segments_overlap_or_gap(segs[i].as_tuple(), segs[j].as_tuple())
+            min_len = min(segs[i].length, segs[j].length)
+            # Chevauchement = gap négatif ; exiger overlap > 30% du plus court
+            if gap > -0.30 * min_len:
+                continue
+        return j
     return None
 
 

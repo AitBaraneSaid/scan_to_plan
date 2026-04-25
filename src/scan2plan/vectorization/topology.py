@@ -21,6 +21,7 @@ from scan2plan.detection.openings import Opening
 from scan2plan.utils.geometry import (
     angle_between_segments,
     line_intersection,
+    perpendicular_distance_point_to_line,
 )
 
 logger = logging.getLogger(__name__)
@@ -87,25 +88,31 @@ def build_wall_graph(
     if not segments:
         return WallGraph(openings=list(openings))
 
-    # Étape 1 : résoudre les intersections → ajuster les extrémités
-    adjusted = _resolve_intersections(segments, intersection_distance)
+    # Étape 1 : filtrer les segments trop courts AVANT résolution des intersections
+    # (évite que des artefacts courts perturbent le snap des vrais murs)
+    filtered = [s for s in segments if s.length >= min_segment_length]
+    if not filtered:
+        return WallGraph(openings=list(openings))
 
-    # Étape 2 : filtrer les segments trop courts
-    adjusted = [s for s in adjusted if s.length >= min_segment_length]
+    # Étape 2 : résoudre les intersections → ajuster les extrémités
+    adjusted = _resolve_intersections(filtered, intersection_distance)
+
+    # Étape 3 : re-filtrer après snap (des segments peuvent s'être raccourcis)
+    adjusted = [s for s in adjusted if s.length >= min_segment_length * 0.5]
 
     if not adjusted:
         return WallGraph(openings=list(openings))
 
-    # Étape 3 : collecter toutes les extrémités comme nœuds candidats
+    # Étape 4 : collecter toutes les extrémités comme nœuds candidats
     raw_nodes: list[tuple[float, float]] = []
     for seg in adjusted:
         raw_nodes.append((seg.x1, seg.y1))
         raw_nodes.append((seg.x2, seg.y2))
 
-    # Étape 4 : fusionner les nœuds proches
+    # Étape 5 : fusionner les nœuds proches
     merged_nodes, node_map = _merge_nodes(raw_nodes, _NODE_MERGE_DIST)
 
-    # Étape 5 : construire les arêtes (un segment → une arête)
+    # Étape 6 : construire les arêtes (un segment → une arête)
     edges: list[tuple[int, int]] = []
     edge_segments: list[DetectedSegment] = []
     for idx, seg in enumerate(adjusted):
@@ -122,8 +129,8 @@ def build_wall_graph(
         openings=list(openings),
     )
 
-    # Étape 6 : nettoyer la topologie
-    graph = clean_topology(graph, min_segment_length=min_segment_length)
+    # Étape 7 : nettoyer la topologie
+    graph = clean_topology(graph, min_segment_length=min_segment_length * 0.5)
 
     logger.info(
         "build_wall_graph : %d nœuds, %d arêtes, %d ouvertures.",
@@ -213,24 +220,41 @@ def _resolve_intersections(
     segments: list[DetectedSegment],
     distance: float,
 ) -> list[DetectedSegment]:
-    """Ajuste les extrémités des segments aux points d'intersection.
+    """Connecte les extrémités proches de segments non-parallèles.
 
-    Pour chaque paire (i, j) de segments non-parallèles dont une extrémité
-    de l'un est proche (< ``distance``) du point d'intersection de leurs
-    droites porteuses, déplace ces extrémités à ce point d'intersection.
+    Deux stratégies combinées pour chaque paire (i, j) :
+
+    1. **Endpoint-to-endpoint snap** : si deux extrémités sont à moins de
+       ``distance`` l'une de l'autre, les fusionner au milieu. Ne requiert
+       aucun calcul d'intersection — robuste aux segments courts ou décalés.
+
+    2. **Endpoint-to-intersection snap** : si une extrémité est proche du
+       point d'intersection géométrique des droites porteuses (< ``distance``),
+       prolonger le segment jusqu'à ce point. Permet de connecter des murs
+       perpendiculaires qui se manquent légèrement.
 
     Args:
         segments: Segments originaux.
-        distance: Seuil de proximité des extrémités (mètres).
+        distance: Seuil de proximité (mètres).
 
     Returns:
         Nouveaux segments avec extrémités ajustées.
     """
     pts: list[list[float]] = [[s.x1, s.y1, s.x2, s.y2] for s in segments]
 
+    # Passe 1 : snap sans contrainte d'angle pour les très courtes distances (≤ 8 cm).
+    # Connecte les extrémités de segments colinéaires ou parallèles aux coins.
+    _HARD_SNAP = 0.08
     for i in range(len(pts)):
         for j in range(i + 1, len(pts)):
+            _snap_pair_endpoints_unconditional(pts, i, j, _HARD_SNAP)
+
+    # Passe 2 : snap standard avec contrainte d'angle
+    for i in range(len(pts)):
+        for j in range(i + 1, len(pts)):
+            _snap_pair_endpoints(pts, i, j, distance)
             _snap_pair_to_intersection(pts, i, j, distance)
+            _snap_endpoint_to_line(pts, i, j, distance)
 
     return [
         DetectedSegment(
@@ -245,15 +269,91 @@ def _resolve_intersections(
     ]
 
 
+def _snap_pair_endpoints_unconditional(
+    pts: list[list[float]],
+    i: int,
+    j: int,
+    distance: float,
+) -> None:
+    """Fusionne les extrémités très proches sans contrainte d'angle.
+
+    Utilisé pour une distance très courte (≤ 5 cm) afin de coller les
+    extrémités de segments colinéaires ou parallèles qui se touchent aux coins.
+    Ne retourne qu'après la première fusion trouvée.
+
+    Args:
+        pts: Coordonnées mutables ``[[x1,y1,x2,y2], ...]``.
+        i: Indice du premier segment.
+        j: Indice du deuxième segment.
+        distance: Seuil de proximité (mètres).
+    """
+    for ki in (0, 2):
+        for kj in (0, 2):
+            dx = pts[i][ki] - pts[j][kj]
+            dy = pts[i][ki + 1] - pts[j][kj + 1]
+            if float(np.hypot(dx, dy)) <= distance:
+                mx = (pts[i][ki] + pts[j][kj]) / 2.0
+                my = (pts[i][ki + 1] + pts[j][kj + 1]) / 2.0
+                pts[i][ki] = mx
+                pts[i][ki + 1] = my
+                pts[j][kj] = mx
+                pts[j][kj + 1] = my
+                return
+
+
+def _snap_pair_endpoints(
+    pts: list[list[float]],
+    i: int,
+    j: int,
+    distance: float,
+) -> None:
+    """Fusionne les extrémités proches de deux segments non-parallèles au point milieu.
+
+    Seuls les segments dont l'angle mutuel dépasse ``_MIN_INTERSECTION_ANGLE_RAD``
+    sont candidats : deux segments parallèles (deux faces d'un même mur) ne doivent
+    pas être connectés par leurs extrémités.
+
+    Vérifie les 4 combinaisons d'extrémités. La première paire à distance
+    < ``distance`` est fusionnée au milieu.
+
+    Args:
+        pts: Coordonnées mutables ``[[x1,y1,x2,y2], ...]``.
+        i: Indice du premier segment.
+        j: Indice du deuxième segment.
+        distance: Seuil de proximité (mètres).
+    """
+    angle = angle_between_segments(
+        (pts[i][0], pts[i][1], pts[i][2], pts[i][3]),
+        (pts[j][0], pts[j][1], pts[j][2], pts[j][3]),
+    )
+    if angle < _MIN_INTERSECTION_ANGLE_RAD:
+        return  # segments parallèles — pas de connexion d'extrémités
+
+    for ki in (0, 2):
+        for kj in (0, 2):
+            dx = pts[i][ki] - pts[j][kj]
+            dy = pts[i][ki + 1] - pts[j][kj + 1]
+            if float(np.hypot(dx, dy)) <= distance:
+                mx = (pts[i][ki] + pts[j][kj]) / 2.0
+                my = (pts[i][ki + 1] + pts[j][kj + 1]) / 2.0
+                pts[i][ki] = mx
+                pts[i][ki + 1] = my
+                pts[j][kj] = mx
+                pts[j][kj + 1] = my
+                return  # une seule fusion par paire
+
+
 def _snap_pair_to_intersection(
     pts: list[list[float]],
     i: int,
     j: int,
     distance: float,
 ) -> None:
-    """Tente de snapper les extrémités proches des segments i et j à leur intersection.
+    """Prolonge les extrémités proches de l'intersection géométrique des droites.
 
-    Modifie ``pts`` en place.
+    Ne traite que les segments non-parallèles. Si une extrémité est à moins
+    de ``distance`` du point d'intersection calculé, elle est déplacée vers
+    ce point.
 
     Args:
         pts: Coordonnées mutables ``[[x1,y1,x2,y2], ...]``.
@@ -278,6 +378,66 @@ def _snap_pair_to_intersection(
     ix, iy = inter
     _snap_endpoints_to_point(pts[i], ix, iy, distance)
     _snap_endpoints_to_point(pts[j], ix, iy, distance)
+
+
+def _snap_endpoint_to_line(
+    pts: list[list[float]],
+    i: int,
+    j: int,
+    distance: float,
+) -> None:
+    """Étend une extrémité vers la droite d'un segment non-parallèle si elle est proche.
+
+    Cas de jonction T ou L : le mur i se termine près de la face du mur j (ou l'inverse),
+    sans que leurs extrémités se touchent. On projette chaque extrémité libre sur la
+    droite support de l'autre segment et on l'étend jusqu'au pied de la perpendiculaire,
+    à condition que ce pied soit dans la distance seuil ET que le point projeté soit
+    raisonnablement sur (ou proche du) segment cible.
+
+    Args:
+        pts: Coordonnées mutables ``[[x1,y1,x2,y2], ...]``.
+        i: Indice du premier segment.
+        j: Indice du deuxième segment.
+        distance: Seuil de proximité perpendiculaire (mètres).
+    """
+    angle = angle_between_segments(
+        (pts[i][0], pts[i][1], pts[i][2], pts[i][3]),
+        (pts[j][0], pts[j][1], pts[j][2], pts[j][3]),
+    )
+    if angle < _MIN_INTERSECTION_ANGLE_RAD:
+        return
+
+    # Essayer de projeter chaque extrémité de i sur la droite de j, et vice versa
+    for src, tgt in ((i, j), (j, i)):
+        tx1, ty1, tx2, ty2 = pts[tgt]
+        tdx = tx2 - tx1
+        tdy = ty2 - ty1
+        tlen_sq = tdx * tdx + tdy * tdy
+        if tlen_sq < 1e-12:
+            continue
+        tlen = float(np.sqrt(tlen_sq))
+
+        for k in (0, 2):
+            px, py = pts[src][k], pts[src][k + 1]
+            # Distance perpendiculaire au segment tgt
+            perp = perpendicular_distance_point_to_line((px, py), (tx1, ty1, tx2, ty2))
+            if perp > distance:
+                continue
+            # Projection sur la droite support du segment tgt
+            t = ((px - tx1) * tdx + (py - ty1) * tdy) / tlen_sq
+            foot_x = tx1 + t * tdx
+            foot_y = ty1 + t * tdy
+            # Vérifier que le pied est dans les bornes du segment tgt (avec marge distance)
+            margin = distance / tlen
+            if t < -margin or t > 1.0 + margin:
+                continue
+            # Ne déplacer l'extrémité que si le déplacement réduit réellement l'écart
+            # (éviter de déplacer un point déjà sur la droite vers une position éloignée)
+            if perp < 1e-4:
+                continue
+            pts[src][k] = foot_x
+            pts[src][k + 1] = foot_y
+            break  # une seule projection par extrémité du segment source
 
 
 def _snap_endpoints_to_point(

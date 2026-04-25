@@ -10,6 +10,11 @@ logger = logging.getLogger(__name__)
 
 _MAX_RANSAC_ATTEMPTS = 5
 
+# Hauteur minimale plausible sous plafond (m)
+_MIN_CEILING_HEIGHT_M = 2.0
+# Hauteur maximale plausible sous plafond (m)
+_MAX_CEILING_HEIGHT_M = 6.0
+
 
 class NoFloorDetectedError(Exception):
     """Levée quand aucun plan horizontal ne peut être détecté comme sol."""
@@ -17,6 +22,85 @@ class NoFloorDetectedError(Exception):
 
 class NoCeilingDetectedError(Exception):
     """Levée quand aucun plan horizontal ne peut être détecté comme plafond."""
+
+
+def detect_floor_rdc(
+    points: np.ndarray,
+    bin_size: float = 0.10,
+    min_floor_height_m: float = _MIN_CEILING_HEIGHT_M,
+    max_floor_height_m: float = _MAX_CEILING_HEIGHT_M,
+) -> tuple[float, float]:
+    """Détecte automatiquement le sol RDC et le plafond via histogramme Z.
+
+    Analyse la distribution des points par tranche Z de ``bin_size`` mètres.
+    Les pics de densité correspondent aux surfaces horizontales (dalles, sols,
+    plafonds). Le sol RDC est le pic le plus bas, le plafond est le prochain
+    pic situé entre ``min_floor_height_m`` et ``max_floor_height_m`` au-dessus.
+
+    Utile quand le nuage contient plusieurs étages ou un repère Z absolu
+    (altitude NGF) : évite de passer manuellement ``--floor-z`` / ``--ceiling-z``.
+
+    Args:
+        points: Array (N, 3) float64.
+        bin_size: Largeur de chaque tranche Z pour l'histogramme (mètres).
+        min_floor_height_m: Hauteur minimale plausible entre sol et plafond (m).
+        max_floor_height_m: Hauteur maximale plausible entre sol et plafond (m).
+
+    Returns:
+        ``(z_floor, z_ceiling)`` — altitudes absolues du sol RDC et du plafond
+        le plus probable (mètres).
+
+    Raises:
+        NoFloorDetectedError: Si aucun pic de sol ne peut être identifié.
+        NoCeilingDetectedError: Si aucun plafond plausible n'est trouvé au-dessus
+            du sol détecté.
+    """
+    from scipy.signal import find_peaks
+
+    z = points[:, 2].astype(np.float32)
+    z_min = float(np.floor(z.min() / bin_size) * bin_size)
+    z_max = float(np.ceil(z.max() / bin_size) * bin_size)
+    bins = np.arange(z_min, z_max + bin_size, bin_size)
+    counts, edges = np.histogram(z, bins=bins)
+    centers = (edges[:-1] + edges[1:]) / 2.0
+
+    if counts.max() == 0:
+        raise NoFloorDetectedError("Histogramme Z vide — nuage de points vide.")
+
+    # Détecter les pics (planchers / plafonds) avec une proéminence suffisante
+    peaks, _ = find_peaks(counts, prominence=counts.max() * 0.04, distance=int(0.5 / bin_size))
+
+    if len(peaks) == 0:
+        raise NoFloorDetectedError(
+            "Aucun pic de densité Z détecté. Le nuage est peut-être trop bruité."
+        )
+
+    # Sol RDC = pic le plus bas
+    floor_peak_idx = peaks[0]
+    z_floor = float(centers[floor_peak_idx])
+    logger.info(
+        "Sol RDC détecté par histogramme Z : %.3f m (%d pics trouvés).",
+        z_floor,
+        len(peaks),
+    )
+
+    # Plafond = prochain pic entre min_height et max_height au-dessus du sol
+    for p in peaks[1:]:
+        z_candidate = float(centers[p])
+        delta = z_candidate - z_floor
+        if min_floor_height_m <= delta <= max_floor_height_m:
+            logger.info(
+                "Plafond RDC détecté par histogramme Z : %.3f m (delta=%.2f m).",
+                z_candidate,
+                delta,
+            )
+            return z_floor, z_candidate
+
+    raise NoCeilingDetectedError(
+        f"Aucun plafond trouvé entre {min_floor_height_m} m et {max_floor_height_m} m "
+        f"au-dessus du sol détecté à {z_floor:.3f} m. "
+        "Utilisez --floor-z et --ceiling-z pour spécifier manuellement."
+    )
 
 
 def detect_floor(

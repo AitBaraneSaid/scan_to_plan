@@ -1,54 +1,55 @@
-# Paramètres du pipeline Scan2Plan
-
 preprocessing:
-  voxel_size: 0.005          # Taille du voxel pour le downsampling (m)
-  sor_k_neighbors: 20        # Nombre de voisins pour le SOR
-  sor_std_ratio: 2.0         # Multiplicateur σ pour le SOR
-
+  voxel_size: 0.005
+  sor_k_neighbors: 20
+  sor_std_ratio: 2.0
 floor_ceiling:
-  ransac_distance: 0.02      # Distance seuil RANSAC pour le sol/plafond (m)
-  ransac_iterations: 1000    # Nombre d'itérations RANSAC
-  normal_tolerance_deg: 10   # Tolérance angulaire pour l'horizontalité (degrés)
-
+  ransac_distance: 0.02
+  ransac_iterations: 1000
+  normal_tolerance_deg: 10
 slicing:
-  heights:                    # Hauteurs des slices relatives au sol (m)
-    - 2.10                    # Slice haute
-    - 1.10                    # Slice médiane (coupe standard)
-    - 0.20                    # Slice basse
-  thickness: 0.10             # Épaisseur de chaque tranche (m)
-
+  heights:
+  - 2.1
+  - 1.1
+  - 0.2
+  thickness: 0.1
 density_map:
-  resolution: 0.005           # Résolution du raster (m/pixel)
-
+  resolution: 0.005
 morphology:
-  kernel_size: 5              # Taille de l'élément structurant (pixels)
-  close_iterations: 2         # Nombre d'itérations de fermeture
-  open_iterations: 1          # Nombre d'itérations d'ouverture
-
+  kernel_size: 3
+  close_iterations: 1
+  open_iterations: 0
 hough:
-  rho: 1                      # Résolution spatiale (pixels)
-  theta_deg: 0.5              # Résolution angulaire (degrés)
-  threshold: 50               # Seuil d'accumulation
-  min_line_length: 50         # Longueur minimale de segment (pixels)
-  max_line_gap: 20            # Gap maximal entre points d'un segment (pixels)
-
+  rho: 1
+  theta_deg: 0.5
+  threshold: 10
+  min_line_length: 20
+  max_line_gap: 10
 segment_fusion:
-  angle_tolerance_deg: 3.0    # Tolérance angulaire pour la colinéarité (degrés)
-  perpendicular_dist: 0.03    # Distance perpendiculaire maximale (m)
-  max_gap: 0.20               # Gap maximal entre segments à fusionner (m)
-
+  angle_tolerance_deg: 3.0
+  perpendicular_dist: 0.05
+  max_gap: 0.1
 regularization:
-  snap_tolerance_deg: 5.0     # Tolérance angulaire pour le snapping (degrés)
-
+  snap_tolerance_deg: 5.0
+  alignment_tolerance: 0.02
 topology:
-  intersection_distance: 0.05 # Distance maximale pour chercher une intersection (m)
-  min_segment_length: 0.10    # Longueur minimale d'un segment (m)
-
+  intersection_distance: 0.10
+  min_segment_length: 0.05
+wall_pairing:
+  enabled: true
+  angle_tolerance_deg: 3.0
+  min_distance: 0.04
+  max_distance: 0.30
+  min_overlap_abs: 0.10
+  min_overlap_ratio: 0.20
+  corridor_margin: 0.02
+  typical_wall_thickness: 0.15
+  min_segment_length: 0.10
+  corridor_intersection_threshold: 0.05
 dxf:
-  version: "R2013"            # Version DXF
+  version: R2013
   layers:
-    walls: "MURS"
-    partitions: "CLOISONS"
-    doors: "PORTES"
-    windows: "FENETRES"
-    uncertain: "INCERTAIN"
+    walls: MURS
+    partitions: CLOISONS
+    doors: PORTES
+    windows: FENETRES
+    uncertain: INCERTAIN
